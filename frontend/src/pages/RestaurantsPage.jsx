@@ -26,7 +26,7 @@ export default function RestaurantsPage({ cart, addToCart, API_URL }) {
     }
   }
 
-  // Hàm helper để hiển thị địa chỉ an toàn
+  // ✅ Hàm helper để hiển thị địa chỉ an toàn (Sửa lỗi Objects are not valid)
   const formatAddress = (address) => {
     if (!address) return "No address";
     if (typeof address === 'string') return address;
@@ -70,7 +70,7 @@ export default function RestaurantsPage({ cart, addToCart, API_URL }) {
                 <h3>{restaurant.name}</h3>
                 <p className="cuisine">{restaurant.cuisineType || "Various"}</p>
                 
-                {/* --- CHỖ SỬA 1: Dùng hàm formatAddress --- */}
+                {/* ✅ SỬA: Dùng hàm formatAddress */}
                 <p className="address">{formatAddress(restaurant.address)}</p> 
                 
                 <div className="delivery-info">
@@ -92,7 +92,6 @@ export default function RestaurantsPage({ cart, addToCart, API_URL }) {
           onClose={() => setSelectedRestaurant(null)}
           addToCart={addToCart}
           API_URL={API_URL}
-          cartLength={cart.length}
           // Truyền hàm formatAddress xuống để dùng tiếp
           formatAddress={formatAddress} 
         />
@@ -101,7 +100,7 @@ export default function RestaurantsPage({ cart, addToCart, API_URL }) {
   )
 }
 
-function RestaurantMenu({ restaurant, onClose, addToCart, API_URL, cartLength, formatAddress }) {
+function RestaurantMenu({ restaurant, onClose, addToCart, API_URL, formatAddress }) {
   const [menuItems, setMenuItems] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -111,6 +110,7 @@ function RestaurantMenu({ restaurant, onClose, addToCart, API_URL, cartLength, f
 
   const fetchMenu = async () => {
     try {
+      // ✅ SỬA: Đường dẫn đúng là /restaurants/{id}/menu
       const response = await axios.get(`${API_URL}/restaurants/${restaurant._id}/menu`)
       setMenuItems(response.data)
     } catch (error) {
@@ -142,7 +142,7 @@ function RestaurantMenu({ restaurant, onClose, addToCart, API_URL, cartLength, f
         <div className="menu-header">
           <h2>{restaurant.name}</h2>
           
-          {/* --- CHỖ SỬA 2: Hiển thị địa chỉ đã format --- */}
+          {/* ✅ SỬA: Hiển thị địa chỉ đã format */}
           <p>{safeAddress}</p>
           
         </div>
