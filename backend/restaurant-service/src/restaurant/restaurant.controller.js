@@ -18,8 +18,10 @@ class RestaurantController {
   }
 
   @Get()
-  async getRestaurants() {
-    return this.restaurantService.findAllRestaurants();
+  async getRestaurants(@Query('admin') admin) {
+    // If query param admin=true is provided, return all restaurants (for admin panel)
+    const showAll = admin === 'true' || admin === true;
+    return this.restaurantService.findAllRestaurants(showAll);
   }
 
   @Get('search/keyword')

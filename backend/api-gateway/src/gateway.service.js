@@ -92,6 +92,32 @@ class GatewayService {
     return this.proxyRequest('restaurant', 'DELETE', `/api/restaurants/menu/${menuItemId}`);
   }
 
+    // Tạo nhà hàng mới qua restaurant-service
+  async createRestaurant(restaurantDto) {
+    return this.proxyRequest(
+      'restaurant',
+      'POST',
+      '/api/restaurants',
+      restaurantDto
+    );
+  }
+
+  // Dùng cho tab Admin -> Nhà hàng: lấy tất cả nhà hàng
+  async getRestaurantsAdmin() {
+    // Request restaurant-service asking for admin view (include inactive)
+    return this.proxyRequest('restaurant', 'GET', '/api/restaurants?admin=true');
+  }
+
+  // Dùng cho Admin toggle trạng thái active của nhà hàng
+  async toggleRestaurantStatus(restaurantId, isActive) {
+    return this.proxyRequest(
+      'restaurant',
+      'PATCH',
+      `/api/restaurants/${restaurantId}/status`,
+      { isActive }
+    );
+  }
+
   async createOrder(orderDto) {
     return this.proxyRequest('order', 'POST', '/api/orders', orderDto);
   }
@@ -140,8 +166,37 @@ class GatewayService {
     return this.proxyRequest('delivery', 'GET', `/api/deliveries/order/${orderId}`);
   }
 
+  async createDelivery(orderData) {
+    return this.proxyRequest('delivery', 'POST', '/api/deliveries', orderData);
+  }
+
   async startDelivery(deliveryId, data) {
     return this.proxyRequest('delivery', 'POST', `/api/deliveries/${deliveryId}/start`, data);
+  }
+
+  // Driver-related proxies
+  async getAvailableDeliveries() {
+    return this.proxyRequest('delivery', 'GET', '/api/deliveries/available');
+  }
+
+  async getDriverHistory(driverId) {
+    return this.proxyRequest('delivery', 'GET', `/api/deliveries/driver/${driverId}/history`);
+  }
+
+  async assignDelivery(deliveryId, driverId) {
+    return this.proxyRequest('delivery', 'PATCH', `/api/deliveries/${deliveryId}/assign`, { driverId });
+  }
+
+  async markArrived(deliveryId) {
+    return this.proxyRequest('delivery', 'PATCH', `/api/deliveries/${deliveryId}/arrived`, {});
+  }
+
+  async markPicked(deliveryId) {
+    return this.proxyRequest('delivery', 'PATCH', `/api/deliveries/${deliveryId}/picked`, {});
+  }
+
+  async completeDeliveryRequest(deliveryId) {
+    return this.proxyRequest('delivery', 'PATCH', `/api/deliveries/${deliveryId}/complete`, {});
   }
 }
 

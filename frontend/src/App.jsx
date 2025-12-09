@@ -14,6 +14,9 @@ import RestaurantDashboard from "./pages/RestaurantDashboard"
 import AdminDashboard from "./pages/AdminDashboard"
 import RestaurantMenuManagement from "./pages/RestaurantMenuManagement"
 import RestaurantAnalytics from "./pages/RestaurantAnalytics"
+import CreateRestaurantPage from "./pages/CreateRestaurantPage"
+import AddInitialMenuItemsPage from "./pages/AddInitialMenuItemsPage"
+import DriverDashboard from "./pages/DriverDashboard"
 
 // --- Component Bảo vệ Route ---
 // Giúp chặn người không có quyền truy cập vào link cụ thể
@@ -50,10 +53,14 @@ export default function App() {
       const response = await axios.get(`${API_URL}/auth/profile`, {
         headers: { Authorization: `Bearer ${token}` },
       })
-      setUser(response.data)
-      // Nếu đang ở trang chủ '/' mà đã login, tự động chuyển vào dashboard
-      if (location.pathname === '/') {
-        redirectBasedOnRole(response.data.userType);
+      const verifiedUser = response.data;
+      setUser(verifiedUser);
+
+      // Special check for new restaurant staff
+      if (verifiedUser.userType === 'RESTAURANT_STAFF' && !verifiedUser.restaurantId) {
+        navigate('/restaurant/create');
+      } else if (location.pathname === '/') {
+        redirectBasedOnRole(verifiedUser);
       }
     } catch (error) {
       console.error("Phiên đã hết hạn")
@@ -65,18 +72,30 @@ export default function App() {
   }
 
   // Hàm điều hướng dựa trên quyền
-  const redirectBasedOnRole = (role) => {
-    if (role === "ADMIN") navigate("/admin/dashboard");
-    else if (role === "RESTAURANT_STAFF") navigate("/restaurant/dashboard");
-    else navigate("/restaurants"); // Khách hàng
+  const redirectBasedOnRole = (user) => {
+    if (user.userType === 'RESTAURANT_STAFF' && !user.restaurantId) {
+      navigate('/restaurant/create');
+    } else if (user.userType === "ADMIN") {
+      navigate("/admin/dashboard");
+    } else if (user.userType === "RESTAURANT_STAFF") {
+      navigate("/restaurant/dashboard");
+    } else {
+      navigate("/restaurants"); // Khách hàng
+    }
   }
 
   // Xử lý Login từ HomePage
-  const handleLoginSuccess = (userData, token) => {
-    localStorage.setItem("token", token)
-    localStorage.setItem("user", JSON.stringify(userData))
-    setUser(userData)
-    redirectBasedOnRole(userData.userType)
+  const handleLoginSuccess = (token) => {
+  // Lưu token
+   localStorage.setItem("token", token);
+  // Gọi lại verifyUser để lấy profile “canon” từ backend
+   verifyUser(token);
+  }
+
+  
+  const updateUser = (updatedUserData) => {
+    setUser(updatedUserData);
+    localStorage.setItem("user", JSON.stringify(updatedUserData));
   }
 
   const handleLogout = () => {
@@ -133,6 +152,11 @@ export default function App() {
                     <button className="nav-btn" onClick={() => navigate("/restaurant/analytics")}>Phân tích</button>
                   </>
                 )}
+                {user.userType === "DRIVER" && (
+                  <>
+                    <button className="nav-btn" onClick={() => navigate('/driver/dashboard')}>Tài xế - Đơn hàng</button>
+                  </>
+                )}
                 {user.userType === "CUSTOMER" && (
                   <>
                     <button className="nav-btn" onClick={() => navigate("/restaurants")}>Nhà hàng</button>
@@ -175,6 +199,19 @@ export default function App() {
             <Route path="/restaurant/dashboard" element={<RestaurantDashboard API_URL={API_URL} />} />
             <Route path="/restaurant/menu" element={<RestaurantMenuManagement API_URL={API_URL} user={user} />} />
             <Route path="/restaurant/analytics" element={<RestaurantAnalytics API_URL={API_URL} />} />
+            <Route
+              path="/restaurant/create"
+              element={<CreateRestaurantPage user={user} updateUser={updateUser} API_URL={API_URL} />}
+            />
+            <Route
+              path="/restaurant/menu/add"
+              element={<AddInitialMenuItemsPage user={user} API_URL={API_URL} />}
+            />
+          </Route>
+
+          {/* Routes cho TÀI XẾ */}
+          <Route element={<ProtectedRoute user={user} allowedRoles={['DRIVER']} />}>
+            <Route path="/driver/dashboard" element={<DriverDashboard API_URL={API_URL} />} />
           </Route>
 
           {/* Routes cho ADMIN */}

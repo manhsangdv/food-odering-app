@@ -17,6 +17,40 @@ class DeliveryController {
     }
   }
 
+  // Also create delivery when an order is created for COD flows
+  @MessagePattern('order_created')
+  async handleOrderCreated(@Payload() data) {
+    try {
+      // For COD (or non-online) orders, create a delivery so drivers can pick up
+      return await this.deliveryService.createDelivery(data);
+    } catch (error) {
+      console.error('Error creating delivery from order_created:', error);
+    }
+  }
+
+  // Drivers: list available deliveries (no driver assigned, newly created/confirmed)
+  @Get('available')
+  async getAvailable() {
+    return this.deliveryService.getAvailableDeliveries();
+  }
+
+  // Allow creating delivery via HTTP (fallback for when events are missed)
+  @Post()
+  async createDeliveryHttp(@Body() orderData) {
+    try {
+      return await this.deliveryService.createDelivery(orderData);
+    } catch (error) {
+      console.error('Error creating delivery via HTTP:', error);
+      throw new HttpException('Failed to create delivery', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  // Drivers: list own delivery history (by driverId)
+  @Get('driver/:driverId/history')
+  async getDriverHistory(@Param('driverId') driverId) {
+    return this.deliveryService.getDeliveriesByDriver(driverId);
+  }
+
   @Get(':id')
   async getDelivery(@Param('id') id) {
     const delivery = await this.deliveryService.getDeliveryById(id);
@@ -24,6 +58,32 @@ class DeliveryController {
       throw new HttpException('Delivery not found', HttpStatus.NOT_FOUND);
     }
     return delivery;
+  }
+
+  // Driver accepts/assigns a delivery
+  @Patch(':id/assign')
+  async assignDriver(@Param('id') id, @Body() body) {
+    const { driverId } = body;
+    if (!driverId) throw new HttpException('driverId required', HttpStatus.BAD_REQUEST);
+    return this.deliveryService.assignDriver(id, driverId);
+  }
+
+  // Driver marks arrived at restaurant
+  @Patch(':id/arrived')
+  async markArrived(@Param('id') id) {
+    return this.deliveryService.markArrived(id);
+  }
+
+  // Driver marks picked up
+  @Patch(':id/picked')
+  async markPicked(@Param('id') id) {
+    return this.deliveryService.markPicked(id);
+  }
+
+  // Driver completes delivery
+  @Patch(':id/complete')
+  async complete(@Param('id') id) {
+    return this.deliveryService.completeDelivery(id);
   }
 
   @Get('order/:orderId')

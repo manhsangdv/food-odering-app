@@ -37,9 +37,9 @@ export default function HomePage({ onLoginSuccess, user, API_URL }) {
         });
       }
 
-      // Đăng nhập thành công -> Gọi hàm của App để cập nhật State và chuyển trang
+      // Đăng nhập/Đăng ký thành công -> Gọi App chỉ với token, App sẽ fetch profile canonical
       if (response.data.token) {
-        onLoginSuccess(response.data.user, response.data.token);
+        onLoginSuccess(response.data.token);
       }
 
     } catch (error) {
@@ -108,6 +108,15 @@ export default function HomePage({ onLoginSuccess, user, API_URL }) {
                         onChange={(e) => setUserType(e.target.value)}
                       />
                       <span>Nhân viên nhà hàng</span>
+                    </label>
+                    <label className="type-option">
+                      <input
+                        type="radio"
+                        value="DRIVER"
+                        checked={userType === "DRIVER"}
+                        onChange={(e) => setUserType(e.target.value)}
+                      />
+                      <span>Tài xế</span>
                     </label>
                   </div>
                 </div>

@@ -33,15 +33,81 @@ class DeliveryService {
   }
 
   async createDelivery(orderData) {
+    // Avoid creating duplicate delivery for same order
+    const existing = await this.getDeliveryByOrderId(orderData._id);
+    if (existing) return existing;
+
+    // Respect provided order status when available (e.g., CREATED for COD flows)
+    const status = orderData.status && ['CREATED', 'CONFIRMED'].includes(orderData.status) ? orderData.status : 'CONFIRMED';
+
     const delivery = new this.DeliveryModel({
       orderId: orderData._id,
       restaurantId: orderData.restaurantId,
       customerId: orderData.customerId,
       restaurantLocation: orderData.restaurantLocation,
       customerLocation: orderData.customerLocation,
-      status: 'CONFIRMED'
+      status
     });
-    return delivery.save();
+
+    const saved = await delivery.save();
+    // Emit event so gateway/other services can react
+    try { this.client.emit('delivery_created', saved); } catch (_) {}
+    return saved;
+  }
+
+  async getAvailableDeliveries() {
+    return this.DeliveryModel.find({ status: { $in: ['CONFIRMED', 'CREATED'] }, driverId: { $exists: false } }).sort({ createdAt: -1 }).exec();
+  }
+
+  async getDeliveriesByDriver(driverId) {
+    return this.DeliveryModel.find({ driverId }).sort({ createdAt: -1 }).exec();
+  }
+
+  async assignDriver(id, driverId) {
+    // Atomic assign: only assign if no driverId yet (prevent race)
+    const updated = await this.DeliveryModel.findOneAndUpdate(
+      { _id: id, driverId: { $exists: false } },
+      { $set: { driverId, status: 'ASSIGNED', assignedAt: new Date(), updatedAt: new Date() } },
+      { new: true }
+    ).exec();
+
+    if (!updated) {
+      throw new Error('Delivery already assigned or not found');
+    }
+
+    // Emit assignment event
+    try { this.client.emit('delivery_status_changed', { deliveryId: updated._id, orderId: updated.orderId, driverId, status: updated.status }); } catch (_) {}
+    return updated;
+  }
+
+  async markArrived(id) {
+    const updated = await this.DeliveryModel.findByIdAndUpdate(
+      id,
+      { status: 'AT_RESTAURANT', arrivedAt: new Date(), updatedAt: new Date() },
+      { new: true }
+    ).exec();
+    this.client.emit('delivery_status_changed', { deliveryId: updated._id, orderId: updated.orderId, status: updated.status });
+    return updated;
+  }
+
+  async markPicked(id) {
+    const updated = await this.DeliveryModel.findByIdAndUpdate(
+      id,
+      { status: 'DELIVERING', pickedAt: new Date(), startedAt: new Date(), updatedAt: new Date() },
+      { new: true }
+    ).exec();
+    this.client.emit('delivery_status_changed', { deliveryId: updated._id, orderId: updated.orderId, status: 'DELIVERING' });
+    return updated;
+  }
+
+  async completeDelivery(id) {
+    const updated = await this.DeliveryModel.findByIdAndUpdate(
+      id,
+      { status: 'COMPLETED', completedAt: new Date(), updatedAt: new Date() },
+      { new: true }
+    ).exec();
+    this.client.emit('delivery_status_changed', { deliveryId: updated._id, orderId: updated.orderId, status: 'COMPLETED' });
+    return updated;
   }
 
   async getDeliveryById(id) {

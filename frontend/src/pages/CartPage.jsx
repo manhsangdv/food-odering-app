@@ -12,6 +12,8 @@ export default function CartPage({ cart, removeFromCart, clearCart, API_URL, nav
     district: '',
     city: ''
   });
+  const [recipientName, setRecipientName] = useState(user?.name || JSON.parse(localStorage.getItem('user') || '{}')?.name || '');
+  const [recipientPhone, setRecipientPhone] = useState(user?.phone || JSON.parse(localStorage.getItem('user') || '{}')?.phone || '');
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [currentOrder, setCurrentOrder] = useState(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
@@ -87,6 +89,8 @@ export default function CartPage({ cart, removeFromCart, clearCart, API_URL, nav
         })),
         paymentMethod,
         deliveryAddress,
+        recipientName,
+        recipientPhone,
         totalAmount: total
       };
 
@@ -198,6 +202,28 @@ export default function CartPage({ cart, removeFromCart, clearCart, API_URL, nav
 
               <div className="delivery-address">
                   <h3>Địa chỉ giao hàng</h3>
+                  <div className="form-group">
+                    <label>Tên người nhận:</label>
+                    <input
+                      type="text"
+                      name="recipientName"
+                      value={recipientName}
+                      onChange={(e) => setRecipientName(e.target.value)}
+                      placeholder="Tên người nhận"
+                      className="form-input"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Số điện thoại người nhận:</label>
+                    <input
+                      type="text"
+                      name="recipientPhone"
+                      value={recipientPhone}
+                      onChange={(e) => setRecipientPhone(e.target.value)}
+                      placeholder="Số điện thoại"
+                      className="form-input"
+                    />
+                  </div>
                   <div className="form-group">
                     <label>Đường/Phố:</label>
                     <input

@@ -18,6 +18,8 @@ export default function RestaurantMenuManagement({ API_URL, user }) {
   useEffect(() => {
     if (user && user.restaurantId) {
       fetchMenuItems()
+    } else {
+      setLoading(false)
     }
   }, [user])
 
@@ -73,6 +75,16 @@ export default function RestaurantMenuManagement({ API_URL, user }) {
   }
 
   if (loading) return <div className="loading">Đang tải thực đơn...</div>
+
+  if (!user || !user.restaurantId) {
+    return (
+      <div className="menu-management">
+        <h2>Quản lý thực đơn</h2>
+        <p>Bạn chưa tạo nhà hàng. Vui lòng tạo nhà hàng trước khi quản lý thực đơn.</p>
+        <button className="btn-add-item" onClick={() => window.location.href = '/restaurant/dashboard'}>Tạo nhà hàng</button>
+      </div>
+    )
+  }
 
   return (
     <div className="menu-management">

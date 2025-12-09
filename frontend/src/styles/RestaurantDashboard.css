@@ -261,3 +261,104 @@
   font-size: 1.1rem;
   color: #999;
 }
+
+/* Card PRO style */
+.pro-card {
+  padding: 18px;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  transition: all 0.25s ease;
+}
+
+.pro-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+}
+
+.pro-card.expanded {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.25);
+}
+
+/* Header */
+.pro-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.pro-title {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.pro-time {
+  font-size: 0.82rem;
+  color: #6b7280;
+}
+
+/* STATUS BADGE PRO */
+.pro-status {
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+/* Color mapping (không đổi logic, chỉ đổi UI) */
+.status.created      { background: #d1d5db; color:#1f2937; } /* xám */
+.status.confirmed    { background: #facc15; color:#78350f; } /* vàng */
+.status.preparing    { background: #60a5fa; color:#1e3a8a; } /* xanh dương */
+.status.ready        { background: #a855f7; color:white; }   /* tím */
+.status.completed    { background: #34d399; color:#064e3b; } /* xanh lá */
+
+/* Info */
+.pro-info p {
+  margin: 5px 0;
+  font-size: 0.95rem;
+  color: #374151;
+}
+
+/* Expand details */
+.pro-details {
+  margin-top: 14px;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 12px;
+}
+
+/* Button PRO */
+.pro-actions {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.pro-btn {
+  padding: 10px 18px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  transition: 0.2s;
+  color: white;
+}
+
+.pro-btn.confirmed { background: #f59e0b; }
+.pro-btn.preparing { background: #3b82f6; }
+.pro-btn.ready     { background: #9333ea; }
+.pro-btn.completed { background: #10b981; }
+
+.pro-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.07);
+}
+

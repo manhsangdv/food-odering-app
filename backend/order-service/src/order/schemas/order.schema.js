@@ -23,7 +23,7 @@ const OrderSchema = new mongoose.Schema({
   deliveryFee: { type: Number, default: 0 },
   total: { type: Number, required: true },
   
-  paymentMethod: { type: String, enum: ['COD', 'ONLINE'], required: true },
+  paymentMethod: { type: String, enum: ['COD', 'ONLINE', 'STRIPE'], required: true },
   
   deliveryAddress: {
     street: String,
@@ -31,6 +31,8 @@ const OrderSchema = new mongoose.Schema({
     district: String,
     city: String
   },
+  recipientName: { type: String },
+  recipientPhone: { type: String },
   customerLocation: {
     lat: Number,
     lng: Number
@@ -38,7 +40,7 @@ const OrderSchema = new mongoose.Schema({
   
   status: {
     type: String,
-    enum: ['CREATED', 'CONFIRMED', 'PREPARING', 'DELIVERING', 'COMPLETED', 'CANCELLED', 'PENDING_PAYMENT', 'PAYMENT_FAILED'],
+    enum: ['CREATED', 'CONFIRMED', 'PREPARING', 'READY', 'DELIVERING', 'COMPLETED', 'CANCELLED', 'PENDING_PAYMENT', 'PAYMENT_FAILED'],
     default: 'CREATED',
     index: true
   },
@@ -51,6 +53,7 @@ const OrderSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now, index: true },
   confirmedAt: Date,
   preparingAt: Date,
+  readyAt: Date,
   deliveringAt: Date,
   completedAt: Date,
   cancelledAt: Date,
