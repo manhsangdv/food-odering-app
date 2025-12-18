@@ -1,19 +1,22 @@
 // Dữ liệu địa chỉ hành chính Việt Nam (Cập nhật chính xác)
 // Cấu trúc: { tỉnh: { quận: [phường] } }
 
-// Helpers to fetch official provinces/districts/wards from
-// https://provinces.open-api.vn (depth=3) at runtime.
+// Helpers to fetch provinces/districts/wards at runtime from VNAppMob Open API:
+// - Provinces:  GET https://api.vnappmob.com/api/v2/province/
+// - Districts:  GET https://api.vnappmob.com/api/v2/province/district/{province_id}
+// - Wards:      GET https://api.vnappmob.com/api/v2/province/ward/{district_id}
+//
 // This file provides two things:
 // 1) A small static fallback `vietnamAddressData` used when offline.
 // 2) Async helpers `fetchAllProvinces`, `getProvinces`, `getDistricts`, `getWards`
-//    which call the official open-api and return consistent structures.
+//    which call VNAppMob API and return consistent structures.
 
 export const vietnamAddressData = {
   "Hà Nội": { "Ba Đình": ["Phúc Tân", "Trúc Bạch", "Cống Vị"], "Hoàn Kiếm": ["Hàng Bài", "Hàng Gai"] },
   "TP. Hồ Chí Minh": { "Quận 1": ["Bến Nghé", "Đa Kao"], "Quận 9": ["Phú Hữu", "Phước Long A", "Phước Long B"] }
 }
 
-const BASE = 'https://provinces.open-api.vn/api/v1'
+const BASE = 'https://api.vnappmob.com/api/v2/province'
 
 async function fetchJson(url) {
   const res = await fetch(url)
@@ -21,51 +24,128 @@ async function fetchJson(url) {
   return res.json()
 }
 
-// Fetch all provinces with nested districts and wards (depth=3).
-export async function fetchAllProvinces(depth = 3) {
-  const url = `${BASE}/p/?depth=${depth}`
-  return fetchJson(url)
+/**
+ * Concurrency-limited async mapper (to avoid blasting the API with too many requests).
+ */
+async function mapLimit(items, limit, mapper) {
+  const results = new Array(items.length)
+  let idx = 0
+
+  async function worker() {
+    while (true) {
+      const i = idx++
+      if (i >= items.length) return
+      results[i] = await mapper(items[i], i)
+    }
+  }
+
+  const workers = Array.from({ length: Math.max(1, limit) }, worker)
+  await Promise.all(workers)
+  return results
 }
 
-// Get the list of provinces (name + code). Uses depth=1 to be lightweight.
+/**
+ * Normalize names for matching (e.g., "Thành phố Hà Nội" vs "Hà Nội").
+ */
+function normalizeName(s) {
+  return String(s ?? '')
+    .toLowerCase()
+    .replace(/^thành phố\s+/i, '')
+    .replace(/^tỉnh\s+/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/**
+ * Fetch all provinces, optionally nesting districts and wards.
+ * `depth` compatibility:
+ * - depth=1: provinces only
+ * - depth=2: provinces + districts
+ * - depth=3: provinces + districts + wards
+ */
+export async function fetchAllProvinces(depth = 3, { concurrency = 6 } = {}) {
+  const provinces = await getProvinces()
+
+  if (depth <= 1) return provinces
+
+  // Attach districts
+  const provincesWithDistricts = await mapLimit(provinces, concurrency, async (p) => {
+    const districts = await getDistricts(p.code)
+    return { ...p, districts }
+  })
+
+  if (depth <= 2) return provincesWithDistricts
+
+  // Attach wards to each district
+  const provincesWithAll = await mapLimit(provincesWithDistricts, concurrency, async (p) => {
+    const districtsWithWards = await mapLimit(p.districts ?? [], concurrency, async (d) => {
+      const wards = await getWards(d.code)
+      return { ...d, wards }
+    })
+    return { ...p, districts: districtsWithWards }
+  })
+
+  return provincesWithAll
+}
+
+// Get the list of provinces (name + id). Lightweight.
 export async function getProvinces() {
-  const url = `${BASE}/p/?depth=1`
+  const url = `${BASE}/`
   const data = await fetchJson(url)
-  return data.map(p => ({ name: p.name, code: p.code, codename: p.codename }))
+  const list = data?.results ?? []
+  // Keep field names compatible with your old code: { name, code, codename }
+  // VNAppMob doesn't provide codename => set null.
+  return list.map(p => ({
+    name: p.province_name,
+    code: p.province_id,
+    codename: null,
+    type: p.province_type
+  }))
 }
 
-// Get districts for a province. provinceCode can be numeric code or codename.
+// Get districts for a province by province_id.
 // Returns array of { name, code, codename }
-export async function getDistricts(provinceCode) {
-  const url = `${BASE}/p/${provinceCode}?depth=2`
+export async function getDistricts(provinceId) {
+  const url = `${BASE}/district/${provinceId}`
   const data = await fetchJson(url)
-  if (!data.districts) return []
-  return data.districts.map(d => ({ name: d.name, code: d.code, codename: d.codename }))
+  const list = data?.results ?? []
+  return list.map(d => ({
+    name: d.district_name,
+    code: d.district_id,
+    codename: null
+  }))
 }
 
-// Get wards for a given province and district. You can provide provinceCode
-// (or codename) and districtCode (or codename). This will fetch the province
-// with depth=3 and find the district's wards.
-export async function getWards(provinceCode, districtCode) {
-  const url = `${BASE}/p/${provinceCode}?depth=3`
+/**
+ * Get wards for a given district by district_id.
+ * Backward compatible signature:
+ * - Old: getWards(provinceCode, districtCode) (from provinces.open-api.vn)
+ * - New: getWards(districtId)
+ *
+ * So:
+ * - if called with 2 args => use districtCode
+ * - if called with 1 arg => treat it as districtId
+ */
+export async function getWards(provinceOrDistrictId, maybeDistrictId) {
+  const districtId = (maybeDistrictId ?? provinceOrDistrictId)
+  const url = `${BASE}/ward/${districtId}`
   const data = await fetchJson(url)
-  if (!data.districts) return []
-  const district = data.districts.find(d => d.code === Number(districtCode) || d.codename === String(districtCode) || d.name === String(districtCode))
-  if (!district || !district.wards) return []
-  return district.wards.map(w => ({ name: w.name, code: w.code, codename: w.codename }))
+  const list = data?.results ?? []
+  return list.map(w => ({
+    name: w.ward_name,
+    code: w.ward_id,
+    codename: null
+  }))
 }
 
-// Convenience: find province by name (case-insensitive). Returns province object.
+// Convenience: find province by name (case-insensitive, ignores "Tỉnh/Thành phố" prefix).
 export async function findProvinceByName(name) {
   const list = await getProvinces()
-  return list.find(p => p.name.toLowerCase() === String(name).toLowerCase())
+  const needle = normalizeName(name)
+  return list.find(p => normalizeName(p.name) === needle)
 }
 
-// You can use the helpers above in your components. Example usage in React:
+// Example usage in React:
 // const provinces = await getProvinces()
-// const districts = await getDistricts(provinceCode)
-// const wards = await getWards(provinceCode, districtCode)
-// You can use the helpers above in your components. Example usage in React:
-// const provinces = await getProvinces()
-// const districts = await getDistricts(provinceCode)
-// const wards = await getWards(provinceCode, districtCode)
+// const districts = await getDistricts(provinceId)
+// const wards = await getWards(districtId)
