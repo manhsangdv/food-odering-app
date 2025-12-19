@@ -72,6 +72,33 @@ class RestaurantService {
     }).exec();
   }
 
+  async getAllMenuItems(keyword = '') {
+    const query = {
+      isActive: true,
+      isAvailable: true
+    };
+
+    const q = String(keyword || '').trim();
+    if (q) {
+      query.$or = [
+        { name: { $regex: q, $options: 'i' } },
+        { description: { $regex: q, $options: 'i' } }
+      ];
+    }
+
+    const items = await this.MenuModel
+      .find(query)
+      .sort({ updatedAt: -1 })
+      .limit(200)
+      .populate('restaurantId', 'name isActive')
+      .exec();
+
+    return (items || []).filter((it) => {
+      const r = it && it.restaurantId;
+      return r && r.isActive !== false;
+    });
+  }
+
   async findRestaurantById(id) {
     return this.RestaurantModel.findById(id).exec();
   }

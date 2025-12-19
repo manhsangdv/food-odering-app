@@ -58,7 +58,7 @@ export default function HomePage({ onLoginSuccess, user, API_URL }) {
           onClick={() => {
              if(user.userType === "ADMIN") navigate("/admin/dashboard");
              else if(user.userType === "RESTAURANT_STAFF") navigate("/restaurant/dashboard");
-             else navigate("/restaurants");
+             else navigate("/foods");
           }}
         >
           Đi đến Bảng điều khiển

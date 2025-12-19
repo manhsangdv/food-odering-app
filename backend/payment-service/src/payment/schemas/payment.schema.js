@@ -10,7 +10,7 @@ const PaymentSchema = new mongoose.Schema({
   
   amount: { type: Number, required: true },
   
-  paymentMethod: { type: String, enum: ['VNPAY', 'SEPAY', 'MOMO'], default: 'VNPAY' },
+  paymentMethod: { type: String, enum: ['SEPAY'], default: 'SEPAY' },
   
   transactionId: String,
   transactionCode: String,

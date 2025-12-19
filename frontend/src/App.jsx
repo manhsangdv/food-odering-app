@@ -7,6 +7,7 @@ import "./App.css"
 
 // Import Pages
 import HomePage from "./pages/HomePage"
+import FoodsPage from "./pages/FoodsPage"
 import RestaurantsPage from "./pages/RestaurantsPage"
 import CartPage from "./pages/CartPage"
 import OrdersPage from "./pages/OrdersPage"
@@ -80,7 +81,7 @@ export default function App() {
     } else if (user.userType === "RESTAURANT_STAFF") {
       navigate("/restaurant/dashboard");
     } else {
-      navigate("/restaurants"); // Khách hàng
+      navigate("/foods"); // Khách hàng
     }
   }
 
@@ -112,7 +113,17 @@ export default function App() {
     if (existingItem) {
       setCart(cart.map((c) => (c.menuItemId === item._id ? { ...c, quantity: c.quantity + 1 } : c)))
     } else {
-      setCart([...cart, { menuItemId: item._id, restaurantId: item.restaurantId, name: item.name, price: item.price, quantity: 1 }])
+      setCart([
+        ...cart,
+        {
+          menuItemId: item._id,
+          restaurantId: item.restaurantId,
+          restaurantName: item.restaurantName,
+          name: item.name,
+          price: item.price,
+          quantity: 1
+        }
+      ])
     }
   }
 
@@ -159,6 +170,7 @@ export default function App() {
                 )}
                 {user.userType === "CUSTOMER" && (
                   <>
+                    <button className="nav-btn" onClick={() => navigate("/foods")}>Món ăn</button>
                     <button className="nav-btn" onClick={() => navigate("/restaurants")}>Nhà hàng</button>
                     <button className="nav-btn" onClick={() => navigate("/orders")}>Đơn hàng của tôi</button>
                     <button className="nav-btn cart-btn" onClick={() => navigate("/cart")}>Giỏ hàng ({cart.length})</button>
@@ -188,6 +200,7 @@ export default function App() {
 
           {/* Routes cho KHÁCH HÀNG */}
           <Route element={<ProtectedRoute user={user} allowedRoles={['CUSTOMER']} />}>
+            <Route path="/foods" element={<FoodsPage cart={cart} addToCart={addToCart} API_URL={API_URL} />} />
             <Route path="/restaurants" element={<RestaurantsPage cart={cart} addToCart={addToCart} API_URL={API_URL} />} />
             {/* Truyền navigate xuống CartPage để chuyển trang sau khi đặt hàng */}
             <Route path="/cart" element={<CartPage cart={cart} removeFromCart={removeFromCart} clearCart={clearCart} API_URL={API_URL} navigate={navigate} user={user} />} />

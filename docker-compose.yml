@@ -91,6 +91,7 @@ services:
       MONGODB_URI: mongodb+srv://phuocthien2304:phuocthien2304@cluster0.zpki9d4.mongodb.net/order-service?retryWrites=true&w=majority&appName=Cluster0
       RABBITMQ_URI: amqps://apvwrzfk:fIsArbh3Y8j8bfed_eZa9KO1oIcDhdil@armadillo.rmq.cloudamqp.com/apvwrzfk
       ORDER_QUEUE: order_queue
+      PAYMENT_QUEUE: payment_queue
       NODE_ENV: development
     networks:
       - food-ordering-network
@@ -161,10 +162,14 @@ services:
       MONGODB_URI: mongodb+srv://phuocthien2304:phuocthien2304@cluster0.zpki9d4.mongodb.net/payment-service?retryWrites=true&w=majority&appName=Cluster0
       RABBITMQ_URI: amqps://apvwrzfk:fIsArbh3Y8j8bfed_eZa9KO1oIcDhdil@armadillo.rmq.cloudamqp.com/apvwrzfk
       PAYMENT_QUEUE: payment_queue
-      VNPAY_GATEWAY_URL: https://sandbox.vnpayment.vn/paygate
-      VNPAY_SECRET_KEY: SHOWCASESECRETKEY12345678
-      SEPAY_GATEWAY_URL: https://sepay.vn
-      PAYMENT_CALLBACK_URL: http://api-gateway:3000/api
+      ORDER_QUEUE: order_queue
+      SEPAY_ACCOUNT_ID: 37114
+      SEPAY_API_KEY: U6TR7M2WQNP4C36JQC5JN81JLWUIKSTVNYBCGWPOGJR2ZRYANHL
+      SEPAY_API_SECRET: U6TR7M2WQNP4C36JQC5JN81JLWUIKSTVNYBCGWPOGJR2ZRYANHL
+      SEPAY_ACCOUNT_NUMBER: 10000580851
+      SEPAY_BANK_NAME: TPBank
+      SEPAY_BANK_CODE: TPB
+      PAYMENT_CALLBACK_URL: https://unequivalent-jeraldine-nontheistical.ngrok-free.dev/api
       FRONTEND_URL: http://localhost:5173
       NODE_ENV: development
     networks:

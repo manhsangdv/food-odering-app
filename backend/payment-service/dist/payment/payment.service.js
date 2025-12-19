@@ -12,13 +12,11 @@ const {
   InjectModel
 } = require('@nestjs/mongoose');
 const crypto = require('crypto');
-const Stripe = require('stripe');
 let PaymentService = (_dec = Injectable(), _dec2 = function (target, key) {
   return InjectModel('Payment')(target, undefined, 0);
 }, _dec3 = Reflect.metadata("design:type", Function), _dec4 = Reflect.metadata("design:paramtypes", [void 0]), _dec(_class = _dec2(_class = _dec3(_class = _dec4(_class = class PaymentService {
   constructor(paymentModel) {
     this.PaymentModel = paymentModel;
-    this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_your_key_here');
     this.client = ClientProxyFactory.create({
       transport: Transport.RMQ,
       options: {
@@ -29,43 +27,49 @@ let PaymentService = (_dec = Injectable(), _dec2 = function (target, key) {
         }
       }
     });
+    this.orderClient = ClientProxyFactory.create({
+      transport: Transport.RMQ,
+      options: {
+        urls: [process.env.RABBITMQ_URI || 'amqp://localhost:5672'],
+        queue: process.env.ORDER_QUEUE || 'order_queue',
+        queueOptions: {
+          durable: false
+        }
+      }
+    });
   }
-  async initiatePayment(orderId, customerId, amount, paymentMethod = 'STRIPE') {
+  async initiatePayment(orderId, customerId, amount, paymentMethod = 'SEPAY') {
     try {
+      const existing = await this.PaymentModel.findOne({
+        orderId,
+        paymentMethod: 'SEPAY'
+      }).exec();
+      if (existing) {
+        return existing;
+      }
       const payment = new this.PaymentModel({
         orderId,
         customerId,
         amount,
-        paymentMethod: paymentMethod || 'STRIPE',
+        paymentMethod: 'SEPAY',
         status: 'PENDING',
         description: `Payment for order ${orderId}`,
         retryCount: 0
       });
       let saved = await payment.save();
-      if (paymentMethod === 'STRIPE') {
-        // Create Stripe Payment Intent
-        const paymentIntent = await this.stripe.paymentIntents.create({
-          amount: Math.round(amount * 100),
-          // Convert to cents
-          currency: 'vnd',
-          description: `Order #${orderId}`,
-          metadata: {
-            paymentId: saved._id.toString(),
-            orderId: orderId.toString(),
-            customerId: customerId.toString()
-          },
-          automatic_payment_methods: {
-            enabled: true
-          }
-        });
-        saved.paymentIntentId = paymentIntent.id;
-        saved.clientSecret = paymentIntent.client_secret;
-      } else {
-        // Fallback to VNPAY or other methods
-        const paymentUrl = this.generatePaymentUrl(saved._id, amount, paymentMethod);
-        saved.paymentUrl = paymentUrl;
-      }
-      saved.redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/payment/callback/${saved._id}`;
+      const transferContent = `PAY ${saved._id.toString()}`;
+      saved.transactionCode = transferContent;
+      saved.bankName = process.env.SEPAY_BANK_NAME || saved.bankName;
+      saved.metadata = {
+        ...(saved.metadata || {}),
+        sepay: {
+          accountNumber: process.env.SEPAY_ACCOUNT_NUMBER,
+          bankName: process.env.SEPAY_BANK_NAME,
+          bankCode: process.env.SEPAY_BANK_CODE,
+          transferContent
+        }
+      };
+      saved.redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/orders`;
       saved = await saved.save();
       return saved;
     } catch (error) {
@@ -92,21 +96,138 @@ let PaymentService = (_dec = Injectable(), _dec2 = function (target, key) {
       orderId
     }).exec();
   }
+  async handleSepayWebhook(callbackData, authorizationHeader) {
+    const apiKey = String(process.env.SEPAY_API_KEY || '').trim();
+    const receivedAuth = String(authorizationHeader || '').trim();
+    const normalize = v => String(v || '').trim().toLowerCase();
+    const ok = apiKey && (normalize(receivedAuth) === normalize(`Apikey ${apiKey}`) || normalize(receivedAuth) === normalize(`ApiKey ${apiKey}`) || normalize(receivedAuth) === normalize(`Bearer ${apiKey}`) || normalize(receivedAuth) === normalize(apiKey));
+    if (!ok) {
+      const err = new Error('Unauthorized');
+      err.status = 401;
+      throw err;
+    }
+    try {
+      if (!callbackData || typeof callbackData !== 'object') {
+        return {
+          success: true,
+          message: 'No data'
+        };
+      }
+      if (callbackData.transferType && callbackData.transferType !== 'in') {
+        return {
+          success: true,
+          message: 'Ignored non-in transaction'
+        };
+      }
+      const content = `${callbackData.content || ''} ${callbackData.description || ''}`;
+      const match = content.match(/[a-f0-9]{24}/i);
+      if (!match) {
+        return {
+          success: true,
+          message: 'No paymentId found in content'
+        };
+      }
+      const paymentId = match[0];
+      const payment = await this.PaymentModel.findById(paymentId).exec();
+      if (!payment) {
+        return {
+          success: true,
+          message: 'Payment not found'
+        };
+      }
+      if (payment.status === 'SUCCESS') {
+        return {
+          success: true,
+          message: 'Already processed'
+        };
+      }
+      const expectedAmount = Number(payment.amount);
+      const receivedAmount = Number(callbackData.transferAmount);
+      if (Number.isFinite(receivedAmount) && Number.isFinite(expectedAmount) && receivedAmount !== expectedAmount) {
+        payment.status = 'FAILED';
+        payment.errorMessage = `Amount mismatch: expected ${expectedAmount}, received ${receivedAmount}`;
+        payment.failedAt = new Date();
+        await payment.save();
+        return {
+          success: true,
+          message: 'Amount mismatch'
+        };
+      }
+      payment.status = 'SUCCESS';
+      payment.transactionId = callbackData.referenceCode || String(callbackData.id || '');
+      payment.bankName = callbackData.gateway || payment.bankName;
+      payment.paidAt = callbackData.transactionDate ? new Date(callbackData.transactionDate) : new Date();
+      await payment.save();
+      this.orderClient.emit('payment_confirmed', {
+        paymentId: payment._id,
+        orderId: payment.orderId,
+        customerId: payment.customerId,
+        amount: payment.amount,
+        transactionId: payment.transactionId,
+        paymentMethod: 'SEPAY'
+      });
+      return {
+        success: true
+      };
+    } catch (error) {
+      console.error('SePay webhook handling error:', error);
+      return {
+        success: true,
+        message: 'Webhook handled with internal error'
+      };
+    }
+  }
   async handlePaymentCallback(paymentId, callbackData) {
     try {
       const payment = await this.PaymentModel.findById(paymentId).exec();
       if (!payment) {
         throw new Error('Payment not found');
       }
+      if (payment.paymentMethod === 'SEPAY') {
+        return this.handleSepayCallbackByPaymentId(payment, callbackData);
+      }
+
+      // Legacy methods kept for backward compatibility
       if (payment.paymentMethod === 'STRIPE') {
         return this.handleStripeCallback(payment, callbackData);
-      } else {
-        return this.handleVNPayCallback(payment, callbackData);
       }
+      return this.handleVNPayCallback(payment, callbackData);
     } catch (error) {
       console.error('Callback handling error:', error);
       throw error;
     }
+  }
+  async handleSepayCallbackByPaymentId(payment, callbackData) {
+    // This is a fallback path when you call /api/payments/:id/callback manually.
+    // Production SePay webhook should use /api/payments/callback.
+    if (!payment || !callbackData || typeof callbackData !== 'object') return payment;
+    if (payment.status === 'SUCCESS') return payment;
+    if (callbackData.transferType && callbackData.transferType !== 'in') {
+      return payment;
+    }
+    const expectedAmount = Number(payment.amount);
+    const receivedAmount = Number(callbackData.transferAmount);
+    if (Number.isFinite(receivedAmount) && Number.isFinite(expectedAmount) && receivedAmount !== expectedAmount) {
+      payment.status = 'FAILED';
+      payment.errorMessage = `Amount mismatch: expected ${expectedAmount}, received ${receivedAmount}`;
+      payment.failedAt = new Date();
+      await payment.save();
+      return payment;
+    }
+    payment.status = 'SUCCESS';
+    payment.transactionId = callbackData.referenceCode || String(callbackData.id || '');
+    payment.bankName = callbackData.gateway || payment.bankName;
+    payment.paidAt = callbackData.transactionDate ? new Date(callbackData.transactionDate) : new Date();
+    await payment.save();
+    this.orderClient.emit('payment_confirmed', {
+      paymentId: payment._id,
+      orderId: payment.orderId,
+      customerId: payment.customerId,
+      amount: payment.amount,
+      transactionId: payment.transactionId,
+      paymentMethod: 'SEPAY'
+    });
+    return payment;
   }
   async handleStripeCallback(payment, callbackData) {
     try {
@@ -139,7 +260,7 @@ let PaymentService = (_dec = Injectable(), _dec2 = function (target, key) {
       }
       await payment.save();
       if (payment.status === 'SUCCESS') {
-        this.client.emit('payment_confirmed', {
+        this.orderClient.emit('payment_confirmed', {
           paymentId: payment._id,
           orderId: payment.orderId,
           customerId: payment.customerId,
@@ -148,7 +269,7 @@ let PaymentService = (_dec = Injectable(), _dec2 = function (target, key) {
           paymentMethod: 'STRIPE'
         });
       } else if (payment.status === 'FAILED') {
-        this.client.emit('payment_failed', {
+        this.orderClient.emit('payment_failed', {
           paymentId: payment._id,
           orderId: payment.orderId,
           reason: payment.errorMessage
@@ -189,7 +310,7 @@ let PaymentService = (_dec = Injectable(), _dec2 = function (target, key) {
       payment.errorMessage = callbackData.vnp_Message || 'Payment failed';
       payment.failedAt = new Date();
       await payment.save();
-      this.client.emit('payment_failed', {
+      this.orderClient.emit('payment_failed', {
         paymentId: payment._id,
         orderId: payment.orderId,
         reason: payment.errorMessage
@@ -221,11 +342,7 @@ let PaymentService = (_dec = Injectable(), _dec2 = function (target, key) {
         const hmac = crypto.createHmac('sha512', secretKey).update(hashString).digest('hex');
         return hmac === vnpSecureHash;
       } else if (method === 'SEPAY') {
-        // Sepay signature verification
-        const signature = callbackData.signature;
-        const secretKey = process.env.SEPAY_SECRET_KEY || '';
-        // Implement Sepay verification logic
-        return true; // Simplified for now
+        return true;
       }
       return true;
     } catch (error) {
@@ -242,29 +359,19 @@ let PaymentService = (_dec = Injectable(), _dec2 = function (target, key) {
       if (payment.retryCount >= 3) {
         throw new Error('Maximum retry attempts exceeded');
       }
-      if (payment.paymentMethod === 'STRIPE') {
-        // Create a new payment intent for retry
-        const paymentIntent = await this.stripe.paymentIntents.create({
-          amount: Math.round(payment.amount * 100),
-          currency: 'vnd',
-          description: `Retry payment for order #${payment.orderId}`,
-          metadata: {
-            paymentId: payment._id.toString(),
-            orderId: payment.orderId.toString(),
-            customerId: payment.customerId.toString(),
-            retry: true
-          }
-        });
-        payment.paymentIntentId = paymentIntent.id;
-        payment.clientSecret = paymentIntent.client_secret;
-        payment.status = 'PENDING';
-        payment.retryCount = (payment.retryCount || 0) + 1;
-        await payment.save();
-        return payment;
-      }
       payment.status = 'PENDING';
       payment.retryCount = (payment.retryCount || 0) + 1;
-      payment.paymentUrl = this.generatePaymentUrl(id, payment.amount, payment.paymentMethod);
+      const transferContent = `PAY ${payment._id.toString()}`;
+      payment.transactionCode = transferContent;
+      payment.bankName = process.env.SEPAY_BANK_NAME || payment.bankName;
+      payment.metadata = {
+        ...(payment.metadata || {}),
+        sepay: {
+          accountNumber: process.env.SEPAY_ACCOUNT_NUMBER,
+          bankName: process.env.SEPAY_BANK_NAME,
+          transferContent
+        }
+      };
       await payment.save();
       return payment;
     } catch (error) {
@@ -281,34 +388,11 @@ let PaymentService = (_dec = Injectable(), _dec2 = function (target, key) {
       if (payment.status !== 'SUCCESS') {
         throw new Error('Only successful payments can be refunded');
       }
-      if (payment.paymentMethod === 'STRIPE') {
-        const refund = await this.stripe.refunds.create({
-          charge: payment.stripeChargeId,
-          reason: reason ? 'requested_by_customer' : 'requested_by_customer',
-          metadata: {
-            paymentId: payment._id.toString(),
-            orderId: payment.orderId.toString(),
-            refundReason: reason
-          }
-        });
-        payment.status = 'REFUNDED';
-        payment.refundId = refund.id;
-        payment.refundReason = reason;
-        payment.refundedAt = new Date();
-        await payment.save();
-        this.client.emit('payment_refunded', {
-          paymentId: payment._id,
-          orderId: payment.orderId,
-          refundId: refund.id,
-          reason: reason
-        });
-        return payment;
-      }
       payment.status = 'REFUNDED';
       payment.refundedAt = new Date();
       payment.refundReason = reason;
       await payment.save();
-      this.client.emit('payment_refunded', {
+      this.orderClient.emit('payment_refunded', {
         paymentId: payment._id,
         orderId: payment.orderId,
         reason: reason

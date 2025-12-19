@@ -22,7 +22,7 @@ class OrderController {
         }
       });
 
-      return this.orderService.createOrder(createDto);
+      return await this.orderService.createOrder(createDto);
     } catch (error) {
       throw new HttpException(error.message || 'Failed to create order', HttpStatus.BAD_REQUEST);
     }

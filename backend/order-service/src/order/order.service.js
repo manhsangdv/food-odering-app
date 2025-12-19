@@ -18,6 +18,15 @@ class OrderService {
         queueOptions: { durable: false },
       },
     });
+
+    this.paymentClient = ClientProxyFactory.create({
+      transport: Transport.RMQ,
+      options: {
+        urls: [process.env.RABBITMQ_URI || 'amqp://localhost:5672'],
+        queue: process.env.PAYMENT_QUEUE || 'payment_queue',
+        queueOptions: { durable: false },
+      },
+    });
   }
 
   async createOrder(createDto) {
@@ -36,11 +45,18 @@ class OrderService {
       return sum + price * qty;
     }, 0);
 
+    const normalizedPaymentMethod = createDto.paymentMethod === 'ONLINE' ? 'SEPAY' : (createDto.paymentMethod || 'COD');
+
+    const rawDeliveryAddress = createDto.deliveryAddress || {};
+    const normalizedDeliveryAddress = {
+      ...rawDeliveryAddress,
+      city: rawDeliveryAddress.city || rawDeliveryAddress.province
+    };
+
     // Validate delivery address if online payment
-    if (createDto.paymentMethod === 'ONLINE' || createDto.paymentMethod === 'STRIPE') {
-      const { deliveryAddress } = createDto;
-      if (!deliveryAddress || !deliveryAddress.street || !deliveryAddress.ward || 
-          !deliveryAddress.district || !deliveryAddress.city) {
+    if (normalizedPaymentMethod === 'SEPAY') {
+      if (!normalizedDeliveryAddress || !normalizedDeliveryAddress.street || !normalizedDeliveryAddress.ward || 
+          !normalizedDeliveryAddress.city) {
         throw new Error('Complete delivery address is required for online payment');
       }
     }
@@ -62,22 +78,22 @@ class OrderService {
       subtotal,
       deliveryFee,
       total,
-      paymentMethod: createDto.paymentMethod || 'COD',
-      deliveryAddress: createDto.deliveryAddress,
+      paymentMethod: normalizedPaymentMethod,
+      deliveryAddress: normalizedDeliveryAddress,
       recipientName: createDto.recipientName || '',
       recipientPhone: createDto.recipientPhone || '',
       customerLocation: createDto.customerLocation,
       notes: createDto.notes || '',
-      status: ['ONLINE', 'STRIPE'].includes(createDto.paymentMethod) ? 'PENDING_PAYMENT' : 'CREATED'
+      status: normalizedPaymentMethod === 'SEPAY' ? 'PENDING_PAYMENT' : 'CREATED'
     });
 
     const saved = await order.save();
 
     // Emit events based on payment method
-    if (['ONLINE', 'STRIPE'].includes(createDto.paymentMethod)) {
-      this.client.emit('order_requires_payment', {
+    if (normalizedPaymentMethod === 'SEPAY') {
+      this.paymentClient.emit('order_requires_payment', {
         ...saved.toObject(),
-        paymentMethod: createDto.paymentMethod
+        paymentMethod: normalizedPaymentMethod
       });
     } else {
       this.client.emit('order_created', saved);
@@ -235,7 +251,7 @@ class OrderService {
   async cancelOrder(orderId, reason) {
     const order = await this.OrderModel.findById(orderId).exec();
     
-    if (!['CREATED', 'CONFIRMED'].includes(order.status)) {
+    if (!['CREATED', 'CONFIRMED', 'PENDING_PAYMENT'].includes(order.status)) {
       throw new Error(`Cannot cancel order with status: ${order.status}`);
     }
 

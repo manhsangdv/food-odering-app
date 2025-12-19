@@ -1,4 +1,4 @@
-const { Controller, Post, Get, Param, Body, Patch, Query, HttpException, HttpStatus, Inject } = require('@nestjs/common');
+const { Controller, Post, Get, Param, Body, Patch, Query, Headers, HttpException, HttpStatus, Inject } = require('@nestjs/common');
 const { MessagePattern, Payload } = require('@nestjs/microservices');
 const { PaymentService } = require('./payment.service');
 
@@ -16,7 +16,21 @@ class PaymentController {
       throw new HttpException('Missing required fields', HttpStatus.BAD_REQUEST);
     }
 
-    return this.paymentService.initiatePayment(orderId, customerId, amount, paymentMethod || 'STRIPE');
+    return this.paymentService.initiatePayment(orderId, customerId, amount, paymentMethod || 'SEPAY');
+  }
+
+  @Post('callback')
+  async handleSepayCallback(@Body() body, @Headers('authorization') authorization) {
+    try {
+      return await this.paymentService.handleSepayWebhook(body, authorization);
+    } catch (error) {
+      throw new HttpException(error.message, error.status || HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  @Get('callback')
+  async sepayWebhookHealthCheck() {
+    return { success: true, message: 'OK' };
   }
 
   @Get(':id')
@@ -76,7 +90,7 @@ class PaymentController {
       orderData._id,
       orderData.customerId,
       orderData.total,
-      'STRIPE'
+      'SEPAY'
     );
   }
 }

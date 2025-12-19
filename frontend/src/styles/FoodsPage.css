@@ -1,0 +1,140 @@
+.foods-container {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.foods-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.foods-header h2 {
+  font-size: 2rem;
+  color: #333;
+  margin: 0;
+}
+
+.search-box {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.search-input {
+  padding: 10px 14px;
+  border: 2px solid #ddd;
+  border-radius: 10px;
+  outline: none;
+  min-width: 260px;
+}
+
+.search-input:focus {
+  border-color: #ff7043;
+}
+
+.btn-search {
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 2px solid #ff7043;
+  background: #ff7043;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-search:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.foods-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.food-card {
+  background: white;
+  border: 2px solid #e0e0e0;
+  border-radius: 14px;
+  overflow: hidden;
+  transition: all 0.25s;
+  display: flex;
+  flex-direction: column;
+}
+
+.food-card:hover {
+  border-color: #ff7043;
+  box-shadow: 0 10px 25px rgba(255, 112, 67, 0.12);
+}
+
+.food-image img {
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+  display: block;
+}
+
+.food-info {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.food-name {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #111827;
+}
+
+.food-restaurant {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #6b7280;
+  font-weight: 600;
+}
+
+.food-desc {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #4b5563;
+  line-height: 1.35;
+  min-height: 36px;
+}
+
+.food-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.food-price {
+  font-weight: 800;
+  color: #ff7043;
+}
+
+.btn-add {
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: none;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.btn-add:hover {
+  background: #1d4ed8;
+}
+
+.no-results {
+  color: #999;
+}

@@ -90,6 +90,15 @@ class GatewayController {
     }
   }
 
+  @Get('restaurants/menu')
+  async getAllMenuItems(@Query('q') keyword) {
+    try {
+      return await this.gatewayService.getAllMenuItems(keyword);
+    } catch (error) {
+      throw new HttpException(error.message, error.status || HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
   @Get('restaurants/:id')
   async getRestaurantById(@Param('id') id) {
     try {
@@ -287,6 +296,11 @@ class GatewayController {
     }
   }
 
+  @Get('payments/callback')
+  async sepayWebhookHealthCheck() {
+    return { success: true, message: 'OK' };
+  }
+
   @Get('payments/:id')
   async getPayment(@Param('id') id) {
     try {
@@ -296,10 +310,28 @@ class GatewayController {
     }
   }
 
+  @Get('payments/order/:orderId')
+  async getPaymentByOrder(@Param('orderId') orderId) {
+    try {
+      return await this.gatewayService.getPaymentByOrderId(orderId);
+    } catch (error) {
+      throw new HttpException(error.message, error.status || HttpStatus.NOT_FOUND);
+    }
+  }
+
   @Post('payments/:id/callback')
   async handlePaymentCallback(@Param('id') id, @Body() callbackData) {
     try {
       return await this.gatewayService.handlePaymentCallback(id, callbackData);
+    } catch (error) {
+      throw new HttpException(error.message, error.status || HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  @Post('payments/callback')
+  async handleSepayWebhook(@Body() callbackData, @Headers('authorization') authorization) {
+    try {
+      return await this.gatewayService.handleSepayWebhook(callbackData, authorization);
     } catch (error) {
       throw new HttpException(error.message, error.status || HttpStatus.BAD_REQUEST);
     }

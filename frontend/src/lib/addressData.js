@@ -16,7 +16,7 @@ export const vietnamAddressData = {
   "TP. Hồ Chí Minh": { "Quận 1": ["Bến Nghé", "Đa Kao"], "Quận 9": ["Phú Hữu", "Phước Long A", "Phước Long B"] }
 }
 
-const BASE = 'https://api.vnappmob.com/api/v2/province'
+const BASE = 'https://34tinhthanh.com/api'
 
 async function fetchJson(url) {
   const res = await fetch(url)
@@ -90,30 +90,21 @@ export async function fetchAllProvinces(depth = 3, { concurrency = 6 } = {}) {
 
 // Get the list of provinces (name + id). Lightweight.
 export async function getProvinces() {
-  const url = `${BASE}/`
-  const data = await fetchJson(url)
-  const list = data?.results ?? []
-  // Keep field names compatible with your old code: { name, code, codename }
-  // VNAppMob doesn't provide codename => set null.
-  return list.map(p => ({
-    name: p.province_name,
-    code: p.province_id,
+  const url = `${BASE}/provinces`
+  const list = await fetchJson(url)
+  return (Array.isArray(list) ? list : []).map(p => ({
+    name: p.name,
+    code: p.province_code,
     codename: null,
-    type: p.province_type
+    type: null
   }))
 }
 
 // Get districts for a province by province_id.
 // Returns array of { name, code, codename }
 export async function getDistricts(provinceId) {
-  const url = `${BASE}/district/${provinceId}`
-  const data = await fetchJson(url)
-  const list = data?.results ?? []
-  return list.map(d => ({
-    name: d.district_name,
-    code: d.district_id,
-    codename: null
-  }))
+  void provinceId
+  return []
 }
 
 /**
@@ -127,14 +118,17 @@ export async function getDistricts(provinceId) {
  * - if called with 1 arg => treat it as districtId
  */
 export async function getWards(provinceOrDistrictId, maybeDistrictId) {
-  const districtId = (maybeDistrictId ?? provinceOrDistrictId)
-  const url = `${BASE}/ward/${districtId}`
-  const data = await fetchJson(url)
-  const list = data?.results ?? []
-  return list.map(w => ({
+  const provinceCode = (maybeDistrictId ?? provinceOrDistrictId)
+  const url = `${BASE}/wards?province_code=${encodeURIComponent(String(provinceCode))}`
+  const list = await fetchJson(url)
+  return (Array.isArray(list) ? list : []).map(w => ({
     name: w.ward_name,
-    code: w.ward_id,
-    codename: null
+    code: w.ward_code,
+    codename: null,
+    province_code: w.province_code,
+    province_name: w.province_name,
+    old_units: w.old_units,
+    has_merger: w.has_merger
   }))
 }
 
@@ -143,6 +137,14 @@ export async function findProvinceByName(name) {
   const list = await getProvinces()
   const needle = normalizeName(name)
   return list.find(p => normalizeName(p.name) === needle)
+}
+
+export async function searchAdministrative(q) {
+  const query = String(q ?? '').trim()
+  if (query.length < 2) return []
+  const url = `${BASE}/search?q=${encodeURIComponent(query)}`
+  const list = await fetchJson(url)
+  return Array.isArray(list) ? list : []
 }
 
 // Example usage in React:

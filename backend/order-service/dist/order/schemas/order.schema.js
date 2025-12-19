@@ -43,7 +43,7 @@ const OrderSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ['COD', 'ONLINE', 'STRIPE'],
+    enum: ['COD', 'SEPAY', 'ONLINE'],
     required: true
   },
   deliveryAddress: {

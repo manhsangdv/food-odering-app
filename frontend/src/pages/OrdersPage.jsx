@@ -68,6 +68,7 @@ export default function OrdersPage({ API_URL }) {
   const getStatusBadgeClass = (status) => {
     return (
       {
+        PENDING_PAYMENT: "badge-pending",
         CREATED: "badge-pending",
         CONFIRMED: "badge-confirmed",
         PREPARING: "badge-preparing",
@@ -80,12 +81,31 @@ export default function OrdersPage({ API_URL }) {
 
   const statusTranslations = {
     all: "Tất cả đơn hàng",
+    PENDING_PAYMENT: "Chờ thanh toán",
     CREATED: "Đã tạo",
     CONFIRMED: "Đã xác nhận",
     PREPARING: "Đang chuẩn bị",
     READY: "Sẵn sàng",
     CANCELLED: "Đã hủy",
     COMPLETED: "Hoàn thành",
+  }
+
+  const getPaymentLabel = (order) => {
+    const method = order?.paymentMethod === 'ONLINE' ? 'SEPAY' : (order?.paymentMethod || 'COD');
+    if (method === 'COD') return 'COD (Thanh toán khi nhận)';
+    return 'SePay (Chuyển khoản)';
+  }
+
+  const getPaymentStatusLabel = (order) => {
+    const method = order?.paymentMethod === 'ONLINE' ? 'SEPAY' : (order?.paymentMethod || 'COD');
+    if (method === 'COD') {
+      if (order?.status === 'CANCELLED') return 'Đã hủy';
+      if (order?.status === 'COMPLETED') return 'Đã thanh toán';
+      return 'Thanh toán khi nhận';
+    }
+    if (order?.status === 'PENDING_PAYMENT') return 'Chờ thanh toán';
+    if (order?.status === 'CANCELLED') return 'Đã hủy';
+    return 'Đã thanh toán';
   }
 
   if (loading) return <div className="loading">Đang tải đơn hàng...</div>
@@ -95,7 +115,7 @@ export default function OrdersPage({ API_URL }) {
       <h2>Đơn hàng của tôi</h2>
 
       <div className="filter-tabs">
-        {["all", "CREATED", "CONFIRMED", "PREPARING", "READY", "COMPLETED"].map((status) => (
+        {["all", "PENDING_PAYMENT", "CREATED", "CONFIRMED", "PREPARING", "READY", "COMPLETED"].map((status) => (
           <button
             key={status}
             className={`filter-tab ${filter === status ? "active" : ""}`}
@@ -118,6 +138,8 @@ export default function OrdersPage({ API_URL }) {
                 <div>
                   <h3>Đơn hàng #{order._id.slice(-8)}</h3>
                   <p className="order-date">{new Date(order.createdAt).toLocaleString()}</p>
+                  <p className="order-date">Phương thức: {getPaymentLabel(order)}</p>
+                  <p className="order-date">Thanh toán: {getPaymentStatusLabel(order)}</p>
                 </div>
                 <div className="order-header-right">
                   <span className={`status-badge ${getStatusBadgeClass(order.status)}`}>{statusTranslations[order.status]}</span>
@@ -163,7 +185,7 @@ export default function OrdersPage({ API_URL }) {
                     </div>
                   )}
 
-                  {['CREATED', 'CONFIRMED'].includes(order.status) && (
+                  {['CREATED', 'CONFIRMED', 'PENDING_PAYMENT'].includes(order.status) && (
                     <div style={{ marginTop: 12 }}>
                       <button
                         className="btn-action cancel"

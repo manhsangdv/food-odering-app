@@ -40,6 +40,11 @@ class RestaurantController {
     return this.restaurantService.findRestaurantsByLocation(parseFloat(lat), parseFloat(lng), parseInt(distance) || 5000);
   }
 
+  @Get('menu')
+  async getAllMenuItems(@Query('q') keyword) {
+    return this.restaurantService.getAllMenuItems(keyword);
+  }
+
   @Get(':id')
   async getRestaurant(@Param('id') id) {
     const restaurant = await this.restaurantService.findRestaurantById(id);

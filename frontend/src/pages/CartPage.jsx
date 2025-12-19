@@ -32,6 +32,72 @@ export default function CartPage({ cart, removeFromCart, clearCart, API_URL, nav
   const [paymentMethod, setPaymentMethod] = useState('COD')
   const [notes, setNotes] = useState('')
 
+  const [sepayShowDetails, setSepayShowDetails] = useState(false)
+
+  const [sepayModal, setSepayModal] = useState({
+    open: false,
+    orderId: '',
+    paymentId: '',
+    bankName: '',
+    bankCode: '',
+    accountNumber: '',
+    amount: 0,
+    transferContent: '',
+    warning: '',
+    success: false
+  })
+
+  useEffect(() => {
+    if (!sepayModal.open || !sepayModal.orderId) return
+
+    let stopped = false
+    const interval = setInterval(async () => {
+      if (stopped) return
+      try {
+        const payRes = await axios.get(
+          `${API_URL}/payments/order/${sepayModal.orderId}?t=${Date.now()}`,
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem('token')}`
+            }
+          }
+        )
+
+        if (payRes?.status === 304) return
+
+        const status = String(payRes?.data?.status || '').toUpperCase()
+        if (status === 'SUCCESS') {
+          stopped = true
+          setSepayModal((prev) => ({ ...prev, success: true }))
+          setTimeout(() => {
+            setSepayModal({
+              open: false,
+              orderId: '',
+              paymentId: '',
+              bankName: '',
+              bankCode: '',
+              accountNumber: '',
+              amount: 0,
+              transferContent: '',
+              warning: '',
+              success: false
+            })
+            setSepayShowDetails(false)
+            alert('Thanh toán thành công!')
+            navigate('/orders')
+          }, 900)
+        }
+      } catch (e) {
+        // ignore polling errors
+      }
+    }, 2000)
+
+    return () => {
+      stopped = true
+      clearInterval(interval)
+    }
+  }, [sepayModal.open, sepayModal.orderId, API_URL, navigate])
+
   // 1. Logic chọn nhà hàng tự động
   useEffect(() => {
     const ids = [...new Set(cart.map(i => i.restaurantId).filter(Boolean))]
@@ -62,7 +128,7 @@ export default function CartPage({ cart, removeFromCart, clearCart, API_URL, nav
     setDeliveryAddress({
       street: data.street,
       ward: data.ward,
-      district: data.district,
+      district: data.district || '',
       province: data.province,
       fullAddress: data.fullAddress
     })
@@ -126,7 +192,7 @@ export default function CartPage({ cart, removeFromCart, clearCart, API_URL, nav
 
     try {
       const itemsForOrder = cart.filter(i => i.restaurantId === selectedRestaurantId)
-      const { total } = calculateTotals(itemsForOrder)
+      const { total, deliveryFee } = calculateTotals(itemsForOrder)
       const customerId = user?.id || user?._id || JSON.parse(localStorage.getItem('user') || '{}')?.id
       const restaurantId = selectedRestaurantId || cart[0]?.restaurantId
 
@@ -146,12 +212,16 @@ export default function CartPage({ cart, removeFromCart, clearCart, API_URL, nav
           quantity: item.quantity
         })),
         paymentMethod,
-        deliveryAddress,
+        deliveryAddress: {
+          ...deliveryAddress,
+          city: deliveryAddress?.city || deliveryAddress?.province
+        },
         deliveryLocation,
         recipientName,
         recipientPhone,
         notes,
-        totalAmount: total
+        totalAmount: total,
+        deliveryFee
       }
 
       const res = await axios.post(`${API_URL}/orders`, orderData, {
@@ -164,6 +234,76 @@ export default function CartPage({ cart, removeFromCart, clearCart, API_URL, nav
         if (remaining.length > 0) {
           localStorage.setItem('cart_remaining_after_order', JSON.stringify(remaining))
         }
+
+        if (paymentMethod === 'SEPAY' || paymentMethod === 'ONLINE') {
+          try {
+            const orderId = res.data._id || res.data.id
+            if (orderId) {
+              let payRes = null
+              try {
+                payRes = await axios.post(
+                  `${API_URL}/payments/initiate`,
+                  {
+                    orderId,
+                    customerId,
+                    amount: total,
+                    paymentMethod: 'SEPAY'
+                  },
+                  { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+                )
+              } catch (e) {
+                // fallback to polling if initiate is temporarily unavailable
+              }
+
+              if (!payRes?.data?._id) {
+                for (let attempt = 0; attempt < 6; attempt++) {
+                  try {
+                    payRes = await axios.get(`${API_URL}/payments/order/${orderId}`, {
+                      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                    })
+                    if (payRes?.data?._id) break
+                  } catch (e) {
+                    // wait then retry
+                  }
+                  await new Promise(r => setTimeout(r, 500))
+                }
+              }
+
+              const sepay = payRes?.data?.metadata?.sepay || {}
+              const transferContent = sepay.transferContent || payRes?.data?.transactionCode
+              const bankName = sepay.bankName || payRes?.data?.bankName || ''
+              const accountNumber = sepay.accountNumber || ''
+
+              if (transferContent) {
+                const warning = (!bankName || !accountNumber)
+                  ? 'Thiếu cấu hình ngân hàng/STK (SEPAY_BANK_NAME/SEPAY_ACCOUNT_NUMBER). Vui lòng cấu hình để hiển thị đầy đủ.'
+                  : ''
+                setSepayShowDetails(false)
+                setSepayModal({
+                  open: true,
+                  orderId,
+                  paymentId: String(payRes?.data?._id || ''),
+                  bankName,
+                  bankCode: sepay.bankCode || '',
+                  accountNumber,
+                  amount: Number(payRes?.data?.amount || 0),
+                  transferContent,
+                  warning,
+                  success: false
+                })
+                return
+              }
+
+              setError('Chưa tạo được thông tin thanh toán SePay. Vui lòng thử lại sau.')
+              return
+            }
+          } catch (e) {
+            // ignore: still navigate to orders
+          }
+        }
+
+        if (paymentMethod === 'SEPAY' || paymentMethod === 'ONLINE') return
+
         alert('Đặt hàng thành công!')
         navigate('/orders')
       }
@@ -171,6 +311,15 @@ export default function CartPage({ cart, removeFromCart, clearCart, API_URL, nav
       setError(err.response?.data?.message || 'Lỗi khi đặt hàng')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const copyText = async (text) => {
+    try {
+      await navigator.clipboard.writeText(String(text || ''))
+      alert('Đã copy!')
+    } catch (e) {
+      alert('Copy thất bại. Vui lòng copy thủ công.')
     }
   }
 
@@ -188,9 +337,114 @@ export default function CartPage({ cart, removeFromCart, clearCart, API_URL, nav
   const filteredItems = cart.filter(i => i.restaurantId === selectedRestaurantId)
   const totalsForSelected = calculateTotals(filteredItems)
 
-  if (cart.length === 0) {
-    return (
-      <div className="cart-container">
+  const isCartEmpty = cart.length === 0
+
+  return (
+    <div className="cart-container">
+      {sepayModal.open && (
+        <div className="sepay-overlay" role="dialog" aria-modal="true">
+          <div className="sepay-modal">
+            <div className="sepay-title">Thanh toán SePay</div>
+            <div className="sepay-subtitle">
+              {sepayModal.success
+                ? 'Đang xác nhận...'
+                : 'Quét QR để chuyển khoản. Hệ thống sẽ tự động xác nhận sau khi bạn thanh toán.'}
+            </div>
+
+            {sepayModal.warning && (
+              <div style={{ marginTop: 12, background: '#FEF3C7', color: '#92400E', padding: 10, borderRadius: 10, fontWeight: 700, fontSize: '0.9rem' }}>
+                {sepayModal.warning}
+              </div>
+            )}
+
+            {(() => {
+              const bankCode = sepayModal.bankCode || (String(sepayModal.bankName || '').toLowerCase().includes('tpbank') ? 'TPB' : '');
+              if (!bankCode || !sepayModal.accountNumber) return null;
+              const qrUrl = `https://img.vietqr.io/image/${bankCode}-${sepayModal.accountNumber}-compact2.png?amount=${encodeURIComponent(String(sepayModal.amount || 0))}&addInfo=${encodeURIComponent(String(sepayModal.transferContent || ''))}`;
+              return (
+                <div style={{ marginTop: 14, display: 'flex', justifyContent: 'center' }}>
+                  <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+                    <img src={qrUrl} alt="VietQR" style={{ width: 260, height: 'auto', display: 'block' }} />
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div style={{ marginTop: 14, textAlign: 'center', fontWeight: 800, color: '#2563eb' }}>
+              {Number(sepayModal.amount || 0).toLocaleString('vi-VN')} ₫
+            </div>
+
+            <div style={{ marginTop: 10, display: 'flex', justifyContent: 'center' }}>
+              <button
+                className="sepay-btn secondary"
+                type="button"
+                onClick={() => setSepayShowDetails((v) => !v)}
+              >
+                {sepayShowDetails ? 'Ẩn chi tiết' : 'Xem chi tiết chuyển khoản'}
+              </button>
+            </div>
+
+            {sepayShowDetails && (
+              <div className="sepay-grid">
+                <div className="sepay-row">
+                  <div className="sepay-label">Ngân hàng</div>
+                  <div className="sepay-value">{sepayModal.bankName || '--'}</div>
+                  <button className="sepay-copy" type="button" onClick={() => copyText(sepayModal.bankName)} disabled={!sepayModal.bankName}>Copy</button>
+                </div>
+                <div className="sepay-row">
+                  <div className="sepay-label">Số tài khoản</div>
+                  <div className="sepay-value">{sepayModal.accountNumber || '--'}</div>
+                  <button className="sepay-copy" type="button" onClick={() => copyText(sepayModal.accountNumber)} disabled={!sepayModal.accountNumber}>Copy</button>
+                </div>
+                <div className="sepay-row">
+                  <div className="sepay-label">Nội dung</div>
+                  <div className="sepay-value sepay-content">{sepayModal.transferContent}</div>
+                  <button className="sepay-copy" type="button" onClick={() => copyText(sepayModal.transferContent)}>Copy</button>
+                </div>
+              </div>
+            )}
+
+            <div className="sepay-actions">
+              <button
+                type="button"
+                className="sepay-btn"
+                disabled={sepayModal.success}
+                onClick={async () => {
+                  try {
+                    if (sepayModal.orderId) {
+                      await axios.patch(
+                        `${API_URL}/orders/${sepayModal.orderId}/cancel`,
+                        { reason: 'Customer cancelled payment' },
+                        { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+                      )
+                    }
+                  } catch (e) {
+                    // ignore
+                  } finally {
+                    setSepayModal({
+                      open: false,
+                      orderId: '',
+                      paymentId: '',
+                      bankName: '',
+                      bankCode: '',
+                      accountNumber: '',
+                      amount: 0,
+                      transferContent: '',
+                      warning: '',
+                      success: false
+                    })
+                    setSepayShowDetails(false)
+                    navigate('/orders')
+                  }
+                }}
+              >
+                Hủy thanh toán
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {isCartEmpty ? (
         <div className="empty-cart">
           <h2>Giỏ hàng của bạn đang trống</h2>
           <p>Hãy thêm vài món ngon vào nhé!</p>
@@ -198,29 +452,25 @@ export default function CartPage({ cart, removeFromCart, clearCart, API_URL, nav
             Tiếp tục mua sắm
           </button>
         </div>
-      </div>
-    )
-  }
+      ) : (
+        <>
+          {/* 1. Thanh điều hướng Step */}
+          <div className="checkout-steps">
+            <button className={`step-btn ${step === 1 ? 'active' : ''}`} onClick={() => setStep(1)}>
+              1. Xem Giỏ hàng
+            </button>
+            <span className="text-gray-300">/</span>
+            <button 
+              className={`step-btn ${step === 2 ? 'active' : ''}`} 
+              onClick={() => selectedRestaurantId && setStep(2)} 
+              disabled={!selectedRestaurantId}
+            >
+              2. Thông tin & Thanh toán
+            </button>
+          </div>
 
-  return (
-    <div className="cart-container">
-      {/* 1. Thanh điều hướng Step */}
-      <div className="checkout-steps">
-        <button className={`step-btn ${step === 1 ? 'active' : ''}`} onClick={() => setStep(1)}>
-          1. Xem Giỏ hàng
-        </button>
-        <span className="text-gray-300">/</span>
-        <button 
-          className={`step-btn ${step === 2 ? 'active' : ''}`} 
-          onClick={() => selectedRestaurantId && setStep(2)} 
-          disabled={!selectedRestaurantId}
-        >
-          2. Thông tin & Thanh toán
-        </button>
-      </div>
-
-      {/* 2. Wrapper chính - Thay đổi class dựa theo Step */}
-      <div className={`checkout-wrapper step-${step}`}>
+          {/* 2. Wrapper chính - Thay đổi class dựa theo Step */}
+          <div className={`checkout-wrapper step-${step}`}>
         
         {/* --- LEFT SIDE --- */}
         <div className="checkout-left">
@@ -346,8 +596,8 @@ export default function CartPage({ cart, removeFromCart, clearCart, API_URL, nav
                     <span className="payment-label">Thanh toán khi nhận hàng (Tiền mặt/Chuyển khoản)</span>
                   </label>
                   <label className="payment-option">
-                    <input type="radio" value="ONLINE" checked={paymentMethod === 'ONLINE'} onChange={(e) => setPaymentMethod(e.target.value)} />
-                    <span className="payment-label">Thanh toán Ví điện tử / Ngân hàng</span>
+                    <input type="radio" value="SEPAY" checked={paymentMethod === 'SEPAY'} onChange={(e) => setPaymentMethod(e.target.value)} />
+                    <span className="payment-label">Thanh toán online (SePay - chuyển khoản ngân hàng)</span>
                   </label>
                 </div>
               </div>
@@ -399,9 +649,11 @@ export default function CartPage({ cart, removeFromCart, clearCart, API_URL, nav
 
       </div>
 
-      {/* Address Modal */}
-      {showAddressForm && (
-        <AddressForm onConfirm={handleMapSelect} onCancel={() => setShowAddressForm(false)} />
+          {/* Address Modal */}
+          {showAddressForm && (
+            <AddressForm onConfirm={handleMapSelect} onCancel={() => setShowAddressForm(false)} />
+          )}
+        </>
       )}
     </div>
   )
