@@ -25,7 +25,7 @@ async function bootstrap() {
   });
 
   // 3. Cấu hình Port chuẩn 3002
-  const port = process.env.RESTAURANT_SERVICE_PORT || 3002;
+  const port = process.env.PORT || process.env.RESTAURANT_SERVICE_PORT || 3002;
 
   // 4. Mở cổng HTTP trước (QUAN TRỌNG: phải có '0.0.0.0')
   await app.listen(port, '0.0.0.0');

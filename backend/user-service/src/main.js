@@ -27,7 +27,7 @@ async function bootstrap() {
 
   // 4. QUAN TRỌNG NHẤT: Lắng nghe trên địa chỉ '0.0.0.0'
   // Nếu thiếu tham số này, Docker sẽ chặn kết nối từ bên ngoài container
-  const port = process.env.USER_SERVICE_PORT || 3003;
+  const port = process.env.PORT || process.env.USER_SERVICE_PORT || 3003;
   await app.listen(port, '0.0.0.0');
 
   console.log(`✅ User Service is running on: ${await app.getUrl()}`);

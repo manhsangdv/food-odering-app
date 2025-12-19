@@ -9,15 +9,24 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   
   // Enable CORS
+  const allowedOrigins = String(process.env.FRONTEND_URLS || process.env.FRONTEND_URL || 'http://localhost:5173')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
   });
 
-  await app.listen(process.env.GATEWAY_PORT || 3000);
-  console.log(`API Gateway listening on port ${process.env.GATEWAY_PORT || 3000}`);
+  const port = process.env.PORT || process.env.GATEWAY_PORT || 3000;
+  await app.listen(port, '0.0.0.0');
+  console.log(`API Gateway listening on port ${port}`);
 
   // Initialize WebSocket server attached to the same HTTP server
   try {

@@ -26,7 +26,7 @@ async function bootstrap() {
   });
 
   // 3. Cấu hình Port chuẩn 3005
-  const port = process.env.PAYMENT_SERVICE_PORT || 3005;
+  const port = process.env.PORT || process.env.PAYMENT_SERVICE_PORT || 3005;
 
   // 4. Mở cổng HTTP trước (QUAN TRỌNG: 0.0.0.0)
   await app.listen(port, '0.0.0.0');

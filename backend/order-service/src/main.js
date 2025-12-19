@@ -25,7 +25,7 @@ async function bootstrap() {
   });
 
   // 3. Cấu hình Port chuẩn 3001
-  const port = process.env.ORDER_SERVICE_PORT || 3001;
+  const port = process.env.PORT || process.env.ORDER_SERVICE_PORT || 3001;
 
   // 4. Mở cổng HTTP trước (QUAN TRỌNG: 0.0.0.0)
   await app.listen(port, '0.0.0.0');
