@@ -136,7 +136,7 @@ services:
       - "3004:3004"
     environment:
       DELIVERY_SERVICE_PORT: 3004
-      MONGODB_URI:  
+      MONGODB_URI:  mongodb+srv://phuocthien2304:phuocthien2304@cluster0.zpki9d4.mongodb.net/delivery-service?retryWrites=true&w=majority&appName=Cluster0
       RABBITMQ_URI: amqps://apvwrzfk:fIsArbh3Y8j8bfed_eZa9KO1oIcDhdil@armadillo.rmq.cloudamqp.com/apvwrzfk
       DELIVERY_QUEUE: delivery_queue
       NODE_ENV: development
