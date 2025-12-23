@@ -11,7 +11,7 @@
     "@nestjs/common": "^10.0.0",
     "@nestjs/core": "^10.0.0",
     "@nestjs/microservices": "^10.0.0",
-    "@nestjs/mongoose": "^10.0.0",
+    "@nestjs/mongoose": "^11.0.4",
     "@nestjs/platform-express": "^10.0.0",
     "@nestjs/terminus": "^11.0.0",
     "amqp-connection-manager": "^5.0.0",
