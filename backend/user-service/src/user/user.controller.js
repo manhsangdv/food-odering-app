@@ -1,12 +1,14 @@
 const { Controller, Post, Get, Patch, Body, Param, Headers, HttpException, HttpStatus, Inject } = require('@nestjs/common');
 const { UserService } = require('./user.service');
 
+
 @Controller('api/auth') // <--- Lưu ý: Đường dẫn gốc là /api/auth
 class UserController {
   constructor(@Inject(UserService) userService) {
     this.userService = userService;
   }
 
+  
   // --- 1. Đăng ký ---
   @Post('register')
   async register(@Body() registerDto) {

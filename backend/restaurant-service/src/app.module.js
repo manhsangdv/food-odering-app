@@ -2,6 +2,7 @@
 const { Module } = require('@nestjs/common');
 const { MongooseModule } = require('@nestjs/mongoose');
 const { RestaurantModule } = require('./restaurant/restaurant.module');
+const { HealthModule } = require('./health/health.module');
 
 const mongoUri =
   process.env.MONGODB_URI ||
@@ -13,6 +14,7 @@ console.log('>>> MONGODB URI restaurant-service =', mongoUri);
   imports: [
     MongooseModule.forRoot(mongoUri),
     RestaurantModule,
+    HealthModule,
   ],
 })
 class AppModule {}
