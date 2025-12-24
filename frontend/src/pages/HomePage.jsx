@@ -10,11 +10,25 @@ export default function HomePage({ onLoginSuccess, user, API_URL }) {
   const [isLogin, setIsLogin] = useState(true)
   const [userType, setUserType] = useState("CUSTOMER")
   const [formData, setFormData] = useState({ name: "", email: "", password: "" })
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const navigate = useNavigate();
 
   const handleChange = (e) => {
     const { name, value } = e.target
     setFormData({ ...formData, [name]: value })
+  }
+
+  const handleSubmitGuarded = async (e) => {
+    if (isSubmitting) {
+      e.preventDefault()
+      return
+    }
+    setIsSubmitting(true)
+    try {
+      await handleSubmit(e)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleSubmit = async (e) => {
@@ -77,7 +91,7 @@ export default function HomePage({ onLoginSuccess, user, API_URL }) {
       <div className="auth-container">
         <div className="auth-form">
           <h3>{isLogin ? "Đăng nhập" : "Đăng ký"}</h3>
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmitGuarded}>
             {!isLogin && (
               <>
                 <input
@@ -138,8 +152,8 @@ export default function HomePage({ onLoginSuccess, user, API_URL }) {
               onChange={handleChange}
               required
             />
-            <button type="submit" className="btn-primary">
-              {isLogin ? "Đăng nhập" : "Đăng ký"}
+            <button type="submit" className="btn-primary" disabled={isSubmitting}>
+              {isSubmitting ? "Đang xử lý..." : (isLogin ? "Đăng nhập" : "Đăng ký")}
             </button>
           </form>
           <p className="toggle-auth">
