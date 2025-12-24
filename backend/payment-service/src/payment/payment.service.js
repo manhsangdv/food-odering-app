@@ -93,9 +93,30 @@ class PaymentService {
     return this.PaymentModel.findOne({ orderId }).exec();
   }
 
-  async handleSepayWebhook(callbackData, authorizationHeader) {
+  async handleSepayWebhook(callbackData, authorizationHeader, rawBuffer, sepaySignature) {
     const apiKey = String(process.env.SEPAY_API_KEY || '').trim();
     const receivedAuth = String(authorizationHeader || '').trim();
+
+    // If a webhook secret is set, prefer verifying signature header using raw payload
+    try {
+      const webhookSecret = String(process.env.SEPAY_WEBHOOK_SECRET || '').trim();
+      if (webhookSecret && sepaySignature) {
+        const payload = rawBuffer ? rawBuffer : Buffer.from(JSON.stringify(callbackData || {}));
+        const expected = crypto.createHmac('sha256', webhookSecret).update(payload).digest('hex');
+        const received = String(sepaySignature || '').trim();
+        const a = Buffer.from(expected);
+        const b = Buffer.from(received);
+        if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+          const err = new Error('Invalid signature');
+          err.status = 401;
+          throw err;
+        }
+      }
+    } catch (sigErr) {
+      const err = new Error('Unauthorized');
+      err.status = 401;
+      throw err;
+    }
 
     const normalize = (v) => String(v || '').trim().toLowerCase();
     const ok = apiKey && (

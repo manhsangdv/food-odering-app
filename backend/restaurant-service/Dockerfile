@@ -8,4 +8,5 @@ COPY src ./src
 RUN npm run build
 
 EXPOSE 3002
-CMD ["npm", "start"]
+# Run node directly (avoid npm wrapping so signals are handled by Node as PID 1)
+CMD ["node", "dist/main.js"]

@@ -47,7 +47,7 @@ function _bootstrap() {
         case 2:
           // 4. QUAN TRỌNG NHẤT: Lắng nghe trên địa chỉ '0.0.0.0'
           // Nếu thiếu tham số này, Docker sẽ chặn kết nối từ bên ngoài container
-          port = process.env.USER_SERVICE_PORT || 3003;
+          port = process.env.PORT || process.env.USER_SERVICE_PORT || 3003;
           _context.n = 3;
           return app.listen(port, '0.0.0.0');
         case 3:

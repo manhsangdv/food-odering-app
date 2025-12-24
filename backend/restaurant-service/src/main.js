@@ -5,8 +5,43 @@ const { NestFactory } = require('@nestjs/core');
 const { Transport } = require('@nestjs/microservices');
 const { AppModule } = require('./app.module');
 
+// Track current app for graceful shutdown from signal handlers
+let __currentApp = null;
+
+// Global process handlers to surface reasons for termination in logs
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err && err.stack ? err.stack : err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled Rejection:', reason);
+});
+process.on('SIGTERM', async () => {
+  console.warn('Received SIGTERM, attempting graceful shutdown...');
+  try {
+    if (__currentApp) {
+      await __currentApp.close();
+      console.log('Application closed gracefully');
+    }
+  } catch (e) {
+    console.error('Error during graceful shutdown:', e);
+  }
+  process.exit(0);
+});
+process.on('SIGINT', async () => {
+  console.warn('Received SIGINT, shutting down...');
+  try {
+    if (__currentApp) {
+      await __currentApp.close();
+    }
+  } catch (e) {
+    console.error('Error during shutdown:', e);
+  }
+  process.exit(0);
+});
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  __currentApp = app;
 
   // 1. Bật CORS
   app.enableCors({

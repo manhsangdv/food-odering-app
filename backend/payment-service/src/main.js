@@ -4,6 +4,7 @@ require('reflect-metadata');
 const { NestFactory } = require('@nestjs/core');
 const { Transport } = require('@nestjs/microservices');
 const { AppModule } = require('./app.module');
+const bodyParser = require('body-parser');
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -27,6 +28,13 @@ async function bootstrap() {
 
   // 3. Cấu hình Port chuẩn 3005
   const port = process.env.PORT || process.env.PAYMENT_SERVICE_PORT || 3005;
+
+  // 3.5 SePay webhook requires raw body (do not parse as JSON middleware)
+  // Apply raw body parser only for webhook endpoints to keep other endpoints JSON-parsed
+  app.use([
+    '/api/payments/callback',
+    '/api/payments/:id/callback'
+  ], bodyParser.raw({ type: 'application/json' }));
 
   // 4. Mở cổng HTTP trước (QUAN TRỌNG: 0.0.0.0)
   await app.listen(port, '0.0.0.0');

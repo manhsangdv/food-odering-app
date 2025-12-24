@@ -1,4 +1,4 @@
-const { Controller, Post, Get, Param, Body, Patch, Query, Headers, HttpException, HttpStatus, Inject } = require('@nestjs/common');
+const { Controller, Post, Get, Param, Body, Patch, Query, Headers, HttpException, HttpStatus, Inject, Req } = require('@nestjs/common');
 const { MessagePattern, Payload } = require('@nestjs/microservices');
 const { PaymentService } = require('./payment.service');
 
@@ -20,9 +20,20 @@ class PaymentController {
   }
 
   @Post('callback')
-  async handleSepayCallback(@Body() body, @Headers('authorization') authorization) {
+  async handleSepayCallback(@Req() req, @Headers('authorization') authorization) {
+    // Support raw body (Buffer) from SePay webhook and fallback to normal JSON body
+    const rawBuffer = Buffer.isBuffer(req.body) ? req.body : null;
+    let body = req.body;
+    if (rawBuffer) {
+      try {
+        body = JSON.parse(rawBuffer.toString());
+      } catch (e) {
+        // keep original raw buffer if parsing fails
+      }
+    }
+    const sepaySignature = req.headers && (req.headers['x-sepay-signature'] || req.headers['x-sepay-signature'.toLowerCase()]);
     try {
-      return await this.paymentService.handleSepayWebhook(body, authorization);
+      return await this.paymentService.handleSepayWebhook(body, authorization, rawBuffer, sepaySignature);
     } catch (error) {
       throw new HttpException(error.message, error.status || HttpStatus.BAD_REQUEST);
     }

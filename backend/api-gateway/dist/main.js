@@ -16,7 +16,7 @@ function bootstrap() {
 }
 function _bootstrap() {
   _bootstrap = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee() {
-    var app, server;
+    var app, allowedOrigins, port, server;
     return _regenerator().w(function (_context) {
       while (1) switch (_context.n) {
         case 0:
@@ -25,16 +25,24 @@ function _bootstrap() {
         case 1:
           app = _context.v;
           // Enable CORS
+          allowedOrigins = String(process.env.FRONTEND_URLS || process.env.FRONTEND_URL || 'http://localhost:5173').split(',').map(function (s) {
+            return s.trim();
+          }).filter(Boolean);
           app.enableCors({
-            origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+            origin: function origin(_origin, callback) {
+              if (!_origin) return callback(null, true);
+              if (allowedOrigins.includes('*') || allowedOrigins.includes(_origin)) return callback(null, true);
+              return callback(new Error('Not allowed by CORS'));
+            },
             credentials: true,
             methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
             allowedHeaders: ['Content-Type', 'Authorization']
           });
+          port = process.env.PORT || process.env.GATEWAY_PORT || 3000;
           _context.n = 2;
-          return app.listen(process.env.GATEWAY_PORT || 3000);
+          return app.listen(port, '0.0.0.0');
         case 2:
-          console.log("API Gateway listening on port ".concat(process.env.GATEWAY_PORT || 3000));
+          console.log("API Gateway listening on port ".concat(port));
 
           // Initialize WebSocket server attached to the same HTTP server
           try {
