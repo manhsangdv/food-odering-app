@@ -7,7 +7,8 @@ const wsBroadcast = require('./ws-broadcast');
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  
+  const expressApp = app.getHttpAdapter().getInstance();
+  expressApp.set('trust proxy', 1);
   // Enable CORS
   const allowedOrigins = String(process.env.FRONTEND_URLS || process.env.FRONTEND_URL || 'http://localhost:5173')
     .split(',')
