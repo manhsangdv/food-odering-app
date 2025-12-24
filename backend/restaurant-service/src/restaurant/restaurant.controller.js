@@ -78,7 +78,11 @@ class RestaurantController {
     if (!menuItemDto.name || !menuItemDto.price || !menuItemDto.category) {
       throw new HttpException('Missing required menu fields', HttpStatus.BAD_REQUEST);
     }
-    return this.restaurantService.addMenuItem(id, menuItemDto);
+    try {
+      return await this.restaurantService.addMenuItem(id, menuItemDto);
+    } catch (error) {
+      throw new HttpException(error.message || 'Failed to add menu item', error.status || HttpStatus.BAD_REQUEST);
+    }
   }
 
   @Get(':id/menu')

@@ -54,6 +54,11 @@ class DeliveryService {
     const saved = await delivery.save();
     // Emit event so gateway/other services can react
     try { this.client.emit('delivery_created', saved); } catch (_) {}
+    // Also inform API gateway for websocket broadcast (best-effort)
+    try {
+      const gateway = process.env.API_GATEWAY_URL || process.env.GATEWAY_URL || 'http://api-gateway:3000';
+      await axios.post(`${gateway}/api/internal/events`, { type: 'delivery_created', payload: { deliveryId: saved._id, orderId: saved.orderId, status: saved.status } });
+    } catch (e) {}
     return saved;
   }
 
@@ -79,6 +84,10 @@ class DeliveryService {
 
     // Emit assignment event
     try { this.client.emit('delivery_status_changed', { deliveryId: updated._id, orderId: updated.orderId, driverId, status: updated.status }); } catch (_) {}
+    try {
+      const gateway = process.env.API_GATEWAY_URL || process.env.GATEWAY_URL || 'http://api-gateway:3000';
+      await axios.post(`${gateway}/api/internal/events`, { type: 'delivery_status_changed', payload: { deliveryId: updated._id, orderId: updated.orderId, driverId, status: updated.status } });
+    } catch (e) {}
     // Best-effort: update order service via HTTP so customer sees status immediately
     try {
       await axios.patch(`${this.orderServiceUrl}/api/orders/${updated.orderId}/confirm`);
@@ -95,6 +104,10 @@ class DeliveryService {
       { new: true }
     ).exec();
     this.client.emit('delivery_status_changed', { deliveryId: updated._id, orderId: updated.orderId, status: updated.status });
+    try {
+      const gateway = process.env.API_GATEWAY_URL || process.env.GATEWAY_URL || 'http://api-gateway:3000';
+      await axios.post(`${gateway}/api/internal/events`, { type: 'delivery_status_changed', payload: { deliveryId: updated._id, orderId: updated.orderId, status: updated.status } });
+    } catch (e) {}
     // Best-effort HTTP update to Order service
     try {
       await axios.patch(`${this.orderServiceUrl}/api/orders/${updated.orderId}/preparing`);
@@ -109,6 +122,10 @@ class DeliveryService {
       { new: true }
     ).exec();
     this.client.emit('delivery_status_changed', { deliveryId: updated._id, orderId: updated.orderId, status: 'PICKED_UP' });
+    try {
+      const gateway = process.env.API_GATEWAY_URL || process.env.GATEWAY_URL || 'http://api-gateway:3000';
+      await axios.post(`${gateway}/api/internal/events`, { type: 'delivery_status_changed', payload: { deliveryId: updated._id, orderId: updated.orderId, status: 'PICKED_UP' } });
+    } catch (e) {}
     // Best-effort HTTP update to Order service: mark as READY for customer view
     try {
       await axios.patch(`${this.orderServiceUrl}/api/orders/${updated.orderId}/ready`);
@@ -123,6 +140,10 @@ class DeliveryService {
       { new: true }
     ).exec();
     this.client.emit('delivery_status_changed', { deliveryId: updated._id, orderId: updated.orderId, status: 'COMPLETED' });
+    try {
+      const gateway = process.env.API_GATEWAY_URL || process.env.GATEWAY_URL || 'http://api-gateway:3000';
+      await axios.post(`${gateway}/api/internal/events`, { type: 'delivery_status_changed', payload: { deliveryId: updated._id, orderId: updated.orderId, status: 'COMPLETED' } });
+    } catch (e) {}
     try {
       await axios.patch(`${this.orderServiceUrl}/api/orders/${updated.orderId}/complete`);
     } catch (e) {}
@@ -159,6 +180,10 @@ class DeliveryService {
       distanceKm,
       etaMinutes
     });
+    try {
+      const gateway = process.env.API_GATEWAY_URL || process.env.GATEWAY_URL || 'http://api-gateway:3000';
+      await axios.post(`${gateway}/api/internal/events`, { type: 'delivery_started', payload: { deliveryId: updated._id, orderId: updated.orderId, distanceKm, etaMinutes } });
+    } catch (e) {}
 
     return updated;
   }

@@ -132,6 +132,16 @@ class RestaurantService {
   }
 
   async addMenuItem(restaurantId, menuItemDto) {
+    // validate restaurant exists
+    try {
+      const rest = await this.RestaurantModel.findById(restaurantId).exec();
+      if (!rest) throw { status: 404, message: 'Restaurant not found' };
+    } catch (e) {
+      // If invalid id format or not found
+      if (e && e.status) throw e;
+      throw { status: 400, message: 'Invalid restaurant id' };
+    }
+
     const menuItem = new this.MenuModel({
       restaurantId,
       name: menuItemDto.name,
@@ -143,7 +153,7 @@ class RestaurantService {
       nutrition: menuItemDto.nutrition,
       allergens: menuItemDto.allergens
     });
-    
+
     return menuItem.save();
   }
 
