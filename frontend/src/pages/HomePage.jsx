@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import axios from "axios" // Import axios
 import { useNavigate } from "react-router-dom"
 import "../styles/HomePage.css"
@@ -11,6 +11,7 @@ export default function HomePage({ onLoginSuccess, user, API_URL }) {
   const [userType, setUserType] = useState("CUSTOMER")
   const [formData, setFormData] = useState({ name: "", email: "", password: "" })
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const submitLockRef = useRef(false)
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -19,15 +20,18 @@ export default function HomePage({ onLoginSuccess, user, API_URL }) {
   }
 
   const handleSubmitGuarded = async (e) => {
-    if (isSubmitting) {
+    if (submitLockRef.current || isSubmitting) {
       e.preventDefault()
       return
     }
+
+    submitLockRef.current = true
     setIsSubmitting(true)
     try {
       await handleSubmit(e)
     } finally {
       setIsSubmitting(false)
+      submitLockRef.current = false
     }
   }
 
