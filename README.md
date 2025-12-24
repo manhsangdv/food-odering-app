@@ -9,7 +9,7 @@ A comprehensive microservice-based food ordering system built with NestJS, Node.
 - Browse restaurants and menus
 - Advanced search and filtering
 - Real-time order tracking with ETA calculation
-- Support for COD and online payment methods (VNPay/Sepay)
+- Support for COD and online payment methods (Sepay)
 - Order history and ratings
 
 ### Restaurant Features
