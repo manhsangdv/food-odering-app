@@ -1,8 +1,9 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import axios from "axios"
 import "../styles/OrdersPage.css"
+import useWebSocket from "../hooks/useWebSocket"
 
 export default function OrdersPage({ API_URL }) {
   const [orders, setOrders] = useState([])
@@ -27,6 +28,40 @@ export default function OrdersPage({ API_URL }) {
       clearInterval(interval);
     };
   }, []);
+
+  // Handle realtime WS events
+  const handleWsEvent = useCallback((event) => {
+    // Expect event { type, payload }
+    if (!event || !event.type || !event.payload) return
+    const payload = event.payload
+    // If payload.orderId matches any order, update its status accordingly
+    const mapping = {
+      ASSIGNED: 'CONFIRMED',
+      AT_RESTAURANT: 'PREPARING',
+      PICKED_UP: 'READY',
+      DELIVERING: 'DELIVERING',
+      COMPLETED: 'COMPLETED'
+    }
+
+    if (payload.orderId) {
+      setOrders((prev) => {
+        const found = prev.some(o => String(o._id) === String(payload.orderId))
+        if (!found) return prev
+        return prev.map(o => {
+          if (String(o._id) !== String(payload.orderId)) return o
+          const next = { ...o }
+          // update status using mapping or directly from payload
+          next.status = mapping[payload.status] || payload.status || next.status
+          // allow gateway to include more fields like etaMinutes, distanceKm
+          if (payload.etaMinutes) next.etaMinutes = payload.etaMinutes
+          if (payload.distanceKm) next.distanceKm = payload.distanceKm
+          return next
+        })
+      })
+    }
+  }, [])
+
+  useWebSocket(handleWsEvent)
 
   const fetchOrders = async () => {
     try {

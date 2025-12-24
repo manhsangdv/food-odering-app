@@ -75,6 +75,29 @@ class RestaurantController {
 
   @Post(':id/menu')
   async addMenuItem(@Param('id') id, @Body() menuItemDto) {
+    // Normalize category values (accept Vietnamese or human labels)
+    const categoryMap = {
+      'món khai vị': 'APPETIZER',
+      'khai vị': 'APPETIZER',
+      'appetizer': 'APPETIZER',
+      'món chính': 'MAIN',
+      'chính': 'MAIN',
+      'main': 'MAIN',
+      'món tráng miệng': 'DESSERT',
+      'tráng miệng': 'DESSERT',
+      'dessert': 'DESSERT',
+      'đồ uống': 'BEVERAGE',
+      'đồ uống/ thức uống': 'BEVERAGE',
+      'beverage': 'BEVERAGE',
+      'combo': 'COMBO'
+    };
+
+    if (menuItemDto && menuItemDto.category && typeof menuItemDto.category === 'string') {
+      const raw = menuItemDto.category.trim().toLowerCase();
+      if (categoryMap[raw]) menuItemDto.category = categoryMap[raw];
+      else menuItemDto.category = menuItemDto.category.toUpperCase();
+    }
+
     if (!menuItemDto.name || !menuItemDto.price || !menuItemDto.category) {
       throw new HttpException('Missing required menu fields', HttpStatus.BAD_REQUEST);
     }
