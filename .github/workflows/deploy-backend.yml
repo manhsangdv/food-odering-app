@@ -158,7 +158,7 @@ jobs:
             --data "{ \"clearCache\": \"full\" }"
       
       - name: Notify Slack on Success
-        if: success()
+        if: ${{ success() && secrets.SLACK_WEBHOOK_URL != '' }}
         uses: slackapi/slack-github-action@v1
         with:
           payload: |
@@ -179,7 +179,7 @@ jobs:
           SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
       
       - name: Notify Slack on Failure
-        if: failure()
+        if: ${{ failure() && secrets.SLACK_WEBHOOK_URL != '' }}
         uses: slackapi/slack-github-action@v1
         with:
           payload: |
